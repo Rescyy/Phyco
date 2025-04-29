@@ -29,7 +29,8 @@
         ],
         "permissions": [
           "core:default",
-          "core:window:allow-close"
+          "core:window:allow-close",
+          "dialog:default"
         ]
       }]
     }

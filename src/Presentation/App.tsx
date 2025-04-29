@@ -3,6 +3,7 @@ import Home from "./Views/Home";
 import Layout from './Views/Layout';
 import TableView from './Views/TableView';
 import AddColumn from './Views/AddColumn';
+import EditColumn from './Views/EditColumn';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Route path="table" element={<TableView />} />
         </Route>
         <Route path="addColumn" element={<AddColumn />} />
+        <Route path="editColumn" element={<EditColumn />} />
       </Routes>
     </BrowserRouter>
   );

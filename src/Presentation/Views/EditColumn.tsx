@@ -1,18 +1,16 @@
+import { emitTo } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import { closeCurrentWindow } from "../../Core/Common";
-import { emitTo } from "@tauri-apps/api/event";
-import { datatypes } from "../../Core/Datatype";
-import { AddColumnCallbackProps } from "../../Application/Manager/DataManager";
+import { useSearchParams } from "react-router-dom";
 
-export default function AddColumn() {
+export default function EditColumn() {
+    const [searchParams] = useSearchParams();
     const [nameValidation, setNameValidation] = useState("");
-    const [typeValidation, setTypeValidation] = useState("");
-    const [name, setName] = useState("");
-    const [type, setType] = useState("");
+    const [name, setName] = useState(searchParams.get("name") ?? "");
+    const type = searchParams.get("type") as string | undefined;
 
     const submitForm = function () {
         const isNameValid = Boolean(name);
-        const isDatatypeValid = Boolean(type);
 
         if (!isNameValid) {
             setNameValidation("Name is required");
@@ -20,22 +18,15 @@ export default function AddColumn() {
             setNameValidation("");
         }
 
-        if (!isDatatypeValid) {
-            setTypeValidation("Datatype is required");
-        } else {
-            setTypeValidation("");
-        }
-
-        if (isNameValid && isDatatypeValid) {
-            const payload: AddColumnCallbackProps = { name, type };
-            emitTo("main", "addColumnCallback", payload);
+        if (isNameValid) {
+            emitTo("main", "editColumnCallback", name);
             closeCurrentWindow();
         }
     };
 
     const [height, setHeight] = useState(window.innerHeight);
     const [width, setWidth] = useState(window.innerWidth);
-
+    
     useEffect(() => {
         const handleResize = () => {
             setHeight(window.innerHeight);
@@ -55,10 +46,10 @@ export default function AddColumn() {
 
         document.addEventListener("keydown", handleEscape);
 
-        return () => {
+        return () =>{
             window.removeEventListener('resize', handleResize);
             document.removeEventListener("keydown", handleEscape);
-        }
+        } 
     }, []);
 
     return <>
@@ -67,7 +58,7 @@ export default function AddColumn() {
                 style={{ height: height, width: width }}
                 className={`bg-gray-100 px-5 flex flex-col justify-around`}>
                 <div className="">
-                    <label className="block text-xl">
+                    <label className="block text-xl select-none">
                         Name
                     </label>
                     <div className="bg-white border rounded border-gray-400">
@@ -84,21 +75,14 @@ export default function AddColumn() {
                     <span className="text-sm text-red-300">{nameValidation}</span>
                 </div>
                 <div className="">
-                    <label className="block text-xl">
+                    <label className="block text-xl select-none">
                         Datatype
                     </label>
                     <div className="border bg-white border-gray-400 rounded">
-                        <select
-                            className="p-1 w-full"
-                            value={type}
-                            onChange={(e) => setType(e.target.value)}>
-                            {type ? "" : <option>Choose a datatype...</option>}
-                            {datatypes.map(item => <option key={item.value} value={item.value}>
-                                {item.text}
-                            </option>)}
-                        </select>
+                        <div className="p-1 w-full text-gray-500 select-none">
+                            {type}
+                        </div>
                     </div>
-                    <span className="text-sm text-red-300">{typeValidation}</span>
                 </div>
                 <div className="">
                     <div className="flex justify-between gap-5">

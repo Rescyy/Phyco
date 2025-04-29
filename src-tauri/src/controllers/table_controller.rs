@@ -1,17 +1,38 @@
-use crate::services::windows::open_add_column_window;
-use tauri::{command, generate_handler, AppHandle, Builder, Runtime};
+use crate::services::windows::{open_child_window, WindowInfo};
+use tauri::{AppHandle, Runtime};
 
-pub trait TableControllerSetup<R: Runtime> {
-    fn setup_table_controller(self) -> Self;
-}
-
-impl<R: Runtime> TableControllerSetup<R> for Builder<R> {
-    fn setup_table_controller(self) -> Self {
-        self.invoke_handler(generate_handler![add_column])
-    }
-}
-
-#[command]
 pub fn add_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
-    open_add_column_window(app)
+    const ADD_COLUMN_LABEL: &str = "addColumn";
+    const ADD_COLUMN_TITLE: &str = "Add Column";
+    const ADD_COLUMN_ROUTE: &str = "addColumn";
+    open_child_window(
+        app,
+        WindowInfo {
+            label: ADD_COLUMN_LABEL.to_string(),
+            title: ADD_COLUMN_TITLE.to_string(),
+            route: ADD_COLUMN_ROUTE.to_string(),
+            height: 220.,
+            width: 220.,
+        },
+    )
+}
+
+pub fn edit_column<R: Runtime>(
+    app: AppHandle<R>,
+    name: String,
+    r#type: String,
+) -> tauri::Result<()> {
+    const EDIT_COLUMN_LABEL: &str = "editColumn";
+    const EDIT_COLUMN_TITLE: &str = "Edit Column";
+    const EDIT_COLUMN_ROUTE: &str = "editColumn";
+    open_child_window(
+        app,
+        WindowInfo {
+            label: EDIT_COLUMN_LABEL.to_string(),
+            title: EDIT_COLUMN_TITLE.to_string(),
+            route: format!["{}?name={}&type={}", EDIT_COLUMN_ROUTE, name, r#type],
+            height: 220.,
+            width: 220.,
+        },
+    )
 }

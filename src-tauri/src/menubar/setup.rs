@@ -1,5 +1,6 @@
 use tauri::{
-    menu::{Menu, SubmenuBuilder}, Builder, Manager, Runtime
+    menu::{Menu, SubmenuBuilder},
+    Builder, Manager, Runtime,
 };
 
 pub trait SetupMenuBar<R: Runtime> {

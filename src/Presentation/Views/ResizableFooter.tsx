@@ -1,15 +1,14 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { State } from "../Setup";
 
 interface ResizableFooterArgs {
     children?: ReactNode;
     heightState: State<number>;
-    isResizingState: State<boolean>;
 }
 
-export default function ResizableFooter({ children, heightState, isResizingState }: ResizableFooterArgs) {
+export default function ResizableFooter({ children, heightState }: ResizableFooterArgs) {
     const [height, setHeight] = heightState;
-    const [isResizing, setResizing] = isResizingState;
+    const [isResizing, setResizing] = useState(false);
 
     const onMouseUp = () => {
         setResizing(false);
@@ -19,7 +18,7 @@ export default function ResizableFooter({ children, heightState, isResizingState
         const onMouseMove = (e: MouseEvent) => {
             if (!isResizing) return;
             const newHeight = window.innerHeight - e.clientY;
-            setHeight(Math.min(Math.max(100, newHeight), window.innerHeight-100));
+            setHeight(Math.min(Math.max(100, newHeight), window.innerHeight - 100));
         };
 
         window.addEventListener('mousemove', onMouseMove);
@@ -35,16 +34,18 @@ export default function ResizableFooter({ children, heightState, isResizingState
     };
 
     return (
-        <div
-            className="fixed bottom-0 left-0 right-0 bg-zinc-900 text-white border-t border-zinc-700 flex flex-col"
-            style={{ height: `${height}px` }}>
-            <div
-                className="h-2 cursor-ns-resize bg-zinc-700 hover:bg-zinc-600"
-                onMouseDown={startResizing}
-            />
-            <div className="flex-1 overflow-auto p-4">
+        <>
+            <div className="fixed bottom-2 left-2 right-2 bg-zinc-200 text-white border-zinc-400 flex flex-col"
+                style={{ height: `${height}px` }}>
+                <div className="h-2 cursor-ns-resize bg-zinc-400"
+                    onMouseDown={startResizing} />
                 {children}
             </div>
-        </div>
+            <style>
+                {
+                    isResizing ? "* {user-select: none;}" : ""
+                }
+            </style>
+        </>
     );
 }
