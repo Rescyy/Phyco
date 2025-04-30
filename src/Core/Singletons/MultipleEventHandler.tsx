@@ -23,7 +23,6 @@ export class MultipleEventHandler {
 
     private executeCallbacks() {
         debounce("ClickHandler.executeCallbacks", () => {
-            console.log(this.events);
             this.callbacks.forEach(callback => {
                 for (let condition in callback.events) {
                     if (callback.events[condition]) {

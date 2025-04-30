@@ -32,11 +32,8 @@ export class DataManager {
         "extensions": ["csv"]
       }]
     });
-
     if (this.projectFile.current === null) return;
-
     this.refreshTable();
-
     const columnNames = this.columnsState[0].map(column => column.name);
     const columnTypes = this.columnsState[0].map(column => column.type.value);
     const rows = this.rowsState[0].map(row =>
@@ -45,7 +42,6 @@ export class DataManager {
     const content = [columnNames, columnTypes, ...rows]
       .map((cells) => cells.map(serialiseCellValue).join(','))
       .join('\n');
-
     await invoke("save_project", { content, filename: this.projectFile.current }).catch(e => console.error(e));
   }
 
@@ -73,7 +69,6 @@ export class DataManager {
   }
 
   editRows(newRows: any[]) {
-    console.log(newRows);
     const [rows, setRows] = this.rowsState;
     const [columns] = this.columnsState;
     columns.forEach(column => {
@@ -82,12 +77,10 @@ export class DataManager {
         const key = column.key;
         const prevValue = rows[idx] ? rows[idx][key] : undefined;
         const type = column.type;
-
         if (newRow[key] !== prevValue) {
           if (type.isValid !== undefined && !type.isValid(newRow[key])) {
             return prevValue;
           }
-
           if (type.preprocess !== undefined) {
             newRow[key] = type.preprocess(newRow[key]);
           }
@@ -166,9 +159,8 @@ export class DataManager {
     return newRow;
   }
 
-  async addColumn(callback?: () => void) {
+  async addColumn() {
     const unlisten = await listen("addColumnCallback", (event: Event<AddColumnCallbackProps>) => {
-      debugger;
       const [columns, setColumns] = this.columnsState;
       const column = new ColumnModel(event.payload);
       if (columns.length == 0) {
@@ -176,7 +168,6 @@ export class DataManager {
         setRows([this.newRow(column)]);
       }
       setColumns([...columns, column]);
-      callback ? callback() : null;
       unlisten();
     });
     await invoke("add_column").catch((e) => console.error(e));

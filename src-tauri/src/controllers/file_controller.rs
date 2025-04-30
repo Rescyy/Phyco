@@ -19,13 +19,11 @@ struct ColumnModel {
     name: String,
     r#type: String,
 }
-
 #[derive(Serialize, Debug)]
 pub struct OpenProjectModel {
     columns: Vec<ColumnModel>,
     rows: Vec<Map<String, Value>>,
 }
-
 pub fn read_project(filename: String) -> tauri::Result<OpenProjectModel> {
     let mut csv = read_csv(filename.as_str())
         .map_err(|_| tauri::Error::Anyhow(anyhow!["Failed reading the csv file"]))?
@@ -56,14 +54,11 @@ fn read_csv(path: &str) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
     let file = File::open(path)?;
     let mut rdr = Reader::from_reader(file);
     let mut data = Vec::new();
-
     let columns = rdr.headers()?;
     data.push(columns.into_iter().map(|s| s.to_string()).collect());
-
     for result in rdr.records() {
         let record = result?;
         data.push(record.into_iter().map(|s| s.to_string()).collect());
     }
-
     Ok(data)
 }

@@ -16,15 +16,14 @@ export default function TableView() {
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
   const [time, setTime] = useState(Date.now());
-  const [searchParams] = useSearchParams();
   const tableRef = useRef<DataGridHandle>(null);
-  const projectFile = useRef<string>(null);
-  const manager = new DataManager([columns, setColumns], [rows, setRows], () => { setTime(Date.now()); }, projectFile);
-  const [loading, setLoading] = useState(Boolean(searchParams.get("filename")));
-
+  
+  const [searchParams] = useSearchParams();
+  const filenameRef = useRef<string>(searchParams.get("filename"));
+  const manager = new DataManager([columns, setColumns], [rows, setRows], () => { setTime(Date.now()); }, filenameRef);
+  const [loading, setLoading] = useState(Boolean(filenameRef.current));
   useEffect(() => {
-    const filename = searchParams.get("filename");
-    projectFile.current = filename;
+    const filename = filenameRef.current;
     if (filename) {
       debounce("TableView.openProject", async () => {
         await manager.openProject(filename);
