@@ -62,7 +62,7 @@ export default function AddColumn() {
     }, []);
 
     return <>
-        <form action={submitForm} id="addColumnForm" >
+        <form action={submitForm} id="addColumnForm" autoComplete="nope">
             <div
                 style={{ height: height, width: width }}
                 className={`bg-gray-100 px-5 flex flex-col justify-around`}>
@@ -76,7 +76,7 @@ export default function AddColumn() {
                             type="text"
                             className="p-1 w-full"
                             placeholder="Column Name..."
-                            autoComplete="off"
+                            autoComplete="nope"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                         />

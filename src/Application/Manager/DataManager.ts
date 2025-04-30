@@ -28,8 +28,8 @@ export class DataManager {
   async saveProject() {
     this.projectFile.current ??= await save({
       filters: [{
-        "name": "CSV",
-        "extensions": ["csv"]
+        "name": "Phyco",
+        "extensions": ["phyco"]
       }]
     });
     if (this.projectFile.current === null) return;
@@ -72,14 +72,16 @@ export class DataManager {
     const [rows, setRows] = this.rowsState;
     const [columns] = this.columnsState;
     columns.forEach(column => {
-      if (column.type.isValid === undefined && column.type.preprocess === undefined) return;
+      const type = column.type;
+      if (type.isValid === undefined && type.preprocess === undefined) return;
       newRows = newRows.map((newRow, idx) => {
+        debugger;
         const key = column.key;
         const prevValue = rows[idx] ? rows[idx][key] : undefined;
-        const type = column.type;
         if (newRow[key] !== prevValue) {
           if (type.isValid !== undefined && !type.isValid(newRow[key])) {
-            return prevValue;
+            newRow[key] = prevValue;
+            return newRow;
           }
           if (type.preprocess !== undefined) {
             newRow[key] = type.preprocess(newRow[key]);

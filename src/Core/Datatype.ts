@@ -9,10 +9,22 @@ export const NumericalDatatype = {
     value: 'numerical',
     text: 'Numerical',
     isValid: (value: any) => {
-        return (typeof value === 'string' || typeof value === 'number') && !isNaN(Number(value));
+        if (typeof value === 'number') {
+            return !isNaN(value) && isFinite(value);
+        }
+        if (typeof value === 'string') {
+            return !isNaN(Number(value.trim()));
+        }
+        return false;
     },
     preprocess: (value: any) => {
-        return value.toString().trim();
+        if (typeof value === 'number') {
+            return value;
+        }
+        if (typeof value === 'string') {
+            return value.trim();
+        }
+        return false;
     }
 }
 
