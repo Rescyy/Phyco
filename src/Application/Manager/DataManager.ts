@@ -1,203 +1,236 @@
 import { ColumnModel } from "../Models/ColumnModel";
+import { OrdinalColumnModel } from "../Models/OrdinalColumnModel";
+import { Column, textEditor } from "react-data-grid";
 import { invoke } from '@tauri-apps/api/core';
 import { listen, Event } from "@tauri-apps/api/event";
-import { Column, textEditor } from "react-data-grid";
-import { OrdinalColumnModel } from "../Models/OrdinalColumnModel";
 import { save } from '@tauri-apps/plugin-dialog';
+import { State } from "../../Presentation/Setup";
+import { ActionManager, AddColumnAction, EditCellAction } from "./ActionManager";
 
 export type AddColumnCallbackProps = {
-  name: string,
-  type: string,
+  name: string;
+  type: string;
 };
+
+export type RowModel = {
+  [key: string]: string
+}
 
 type OpenProjectProps = {
-  columns: { name: string, type: string }[],
-  rows: any[]
-};
+  columns: { name: string; type: string }[];
+  rows: RowModel[];
+}
 
-function serialiseCellValue(value: unknown) {
+export type DataManagerProps = {
+  columnsState: State<ColumnModel[]>,
+  rowsState: State<RowModel[]>,
+  refreshTable: () => void,
+  filenameRef: React.RefObject<string | null>,
+  actionManagerRef: React.RefObject<ActionManager>,
+}
+
+function serialiseCellValue(value: unknown): string | unknown {
   if (typeof value === 'string') {
-    const formattedValue = value.replace(/"/g, '""');
-    return formattedValue.includes(',') ? `"${formattedValue}"` : formattedValue;
+    const formatted = value.replace(/"/g, '""');
+    return formatted.includes(',') ? `"${formatted}"` : formatted;
   }
   return value;
 }
 
-
 export class DataManager {
-  async saveProject() {
-    this.projectFile.current ??= await save({
-      filters: [{
-        "name": "Phyco",
-        "extensions": ["phyco"]
-      }]
-    });
-    if (this.projectFile.current === null) return;
-    this.refreshTable();
-    const columnNames = this.columnsState[0].map(column => column.name);
-    const columnTypes = this.columnsState[0].map(column => column.type.value);
-    const rows = this.rowsState[0].map(row =>
-      this.columnsState[0].map(column => row[column.key])
-    );
-    const content = [columnNames, columnTypes, ...rows]
-      .map((cells) => cells.map(serialiseCellValue).join(','))
-      .join('\n');
-    await invoke("save_project", { content, filename: this.projectFile.current }).catch(e => console.error(e));
-  }
+  columnsState: State<ColumnModel[]>;
+  rowsState: State<RowModel[]>;
+  refreshTable: () => void;
+  private filenameRef: React.RefObject<string | null>;
+  private actionManagerRef: React.RefObject<ActionManager>;
 
-  async openProject(filename: string) {
-    const [, setColumns] = this.columnsState;
-    const [, setRows] = this.rowsState;
-    await invoke<OpenProjectProps>("read_project", { filename }).then(
-      (payload) => {
-        const { columns, rows } = payload;
-        const processedColumns = columns.map(column => new ColumnModel(column));
-        const nameToKeyMapping: { [name: string]: string } = {};
-        processedColumns.forEach(column => nameToKeyMapping[column.name] = column.key);
-        setColumns(processedColumns);
-        setRows(rows.map((row, idx) => {
-          const processedRow: any = {};
-          for (let name in row) {
-            debugger;
-            processedRow[nameToKeyMapping[name]] = row[name];
-          }
-          debugger;
-          return { ...processedRow, key: idx };
-        }));
-      }
-    ).catch(e => console.error(e));
-  }
-
-  editRows(newRows: any[]) {
-    const [rows, setRows] = this.rowsState;
-    const [columns] = this.columnsState;
-    columns.forEach(column => {
-      const type = column.type;
-      if (type.isValid === undefined && type.preprocess === undefined) return;
-      newRows = newRows.map((newRow, idx) => {
-        debugger;
-        const key = column.key;
-        const prevValue = rows[idx] ? rows[idx][key] : undefined;
-        if (newRow[key] !== prevValue) {
-          if (type.isValid !== undefined && !type.isValid(newRow[key])) {
-            newRow[key] = prevValue;
-            return newRow;
-          }
-          if (type.preprocess !== undefined) {
-            newRow[key] = type.preprocess(newRow[key]);
-          }
-        }
-        return newRow;
-      });
-    });
-    setRows(newRows);
-  }
-
-  deleteColumn(columnIdx: number | null): void {
-    const [columns, setColumns] = this.columnsState;
-    if (columnIdx === null || columnIdx < 0 || columnIdx > columns.length) return;
-    columnIdx = columnIdx - 1;
-    setColumns(prev => prev.filter((_, idx) => idx !== columnIdx));
-  }
-
-  deleteRow(rowIdx: number | null): void {
-    const [rows, setRows] = this.rowsState;
-    if (rowIdx === null || rowIdx < 0 || rowIdx >= rows.length) return;
-    setRows(prev => prev.filter((_, idx) => idx !== rowIdx));
-  }
-
-  async editColumn(columnIdx: number | null, callback?: () => void) {
-    if (columnIdx !== null) {
-      const [columns, setColumns] = this.columnsState;
-      const unlisten = await listen("editColumnCallback", (event: Event<string>) => {
-        columns[columnIdx - 1].name = event.payload;
-        setColumns(columns);
-        this.refreshTable();
-        callback ? callback() : null;
-        unlisten();
-      });
-      const column = columns[columnIdx - 1];
-      await invoke("edit_column", { name: column.name, type: column.type.text }).catch((e) => console.error(e));
-    }
-  }
-
-  private columnsState: [ColumnModel[], React.Dispatch<React.SetStateAction<ColumnModel[]>>];
-  private rowsState: [any[], React.Dispatch<React.SetStateAction<any[]>>];
-  private refreshTable: () => void;
-  private projectFile: React.RefObject<string | null>;
-
-  constructor(
-    columnsState: [ColumnModel[], React.Dispatch<React.SetStateAction<ColumnModel[]>>],
-    rowsState: [any[], React.Dispatch<React.SetStateAction<any[]>>],
-    refreshTable: () => void,
-    projectFile: React.RefObject<string | null>
+  constructor({
+    columnsState,
+    rowsState,
+    refreshTable,
+    filenameRef,
+    actionManagerRef }: DataManagerProps
   ) {
     this.columnsState = columnsState;
     this.rowsState = rowsState;
     this.refreshTable = refreshTable;
-    this.projectFile = projectFile;
+    this.filenameRef = filenameRef;
+    this.actionManagerRef = actionManagerRef;
   }
 
-  addRow() {
+  setStateHandlers({
+    columnsState,
+    rowsState
+  }: {
+    columnsState: [ColumnModel[], React.Dispatch<React.SetStateAction<ColumnModel[]>>];
+    rowsState: [RowModel[], React.Dispatch<React.SetStateAction<RowModel[]>>];
+  }) {
+    this.columnsState = columnsState;
+    this.rowsState = rowsState;
+  }
+
+  async saveProject(): Promise<void> {
+    if (!this.filenameRef.current) {
+      this.filenameRef.current = await save({
+        filters: [{ name: "Phyco", extensions: ["phyco"] }]
+      });
+    }
+    if (!this.filenameRef.current) return;
+
+    this.refreshTable();
     const [columns] = this.columnsState;
-    if (columns) {
-      const [rows, setRows] = this.rowsState;
-      setRows([...rows, this.newRow()]);
+    const [rows] = this.rowsState;
+
+    const header = columns.map(col => col.name);
+    const types = columns.map(col => col.type.value);
+    const rowData = rows.map(row => columns.map(col => row[col.key]));
+    const content = [header, types, ...rowData]
+      .map(cells => cells.map(serialiseCellValue).join(','))
+      .join('\n');
+
+    try {
+      await invoke("save_project", { content, filename: this.filenameRef.current });
+    } catch (e) {
+      console.error(e);
     }
   }
 
-  newRow(columns?: ColumnModel[] | ColumnModel) {
-    const newRow: any = {
-      key: Date.now()
-    };
-    if (columns instanceof ColumnModel) {
-      columns = [columns];
-    } else {
-      columns ??= this.columnsState[0];
+  async openProject(filename: string): Promise<void> {
+    const [, setColumns] = this.columnsState;
+    const [, setRows] = this.rowsState;
+
+    try {
+      const { columns, rows } = await invoke<OpenProjectProps>("read_project", { filename });
+      const processedColumns = columns.map(col => new ColumnModel(col));
+      const nameToKey: Record<string, string> = {};
+      processedColumns.forEach(col => nameToKey[col.name] = col.key);
+
+      setColumns(processedColumns);
+      setRows(rows.map((row, idx) => {
+        const processed: any = {};
+        for (const name in row) {
+          processed[nameToKey[name]] = row[name];
+        }
+        return { ...processed, key: idx };
+      }));
+    } catch (e) {
+      console.error(e);
     }
-    columns.forEach(column => {
-      newRow[column.key] = "";
+  }
+
+  editRows(newRows: any[]): void {
+    const [rows, setRows] = this.rowsState;
+    const [columns] = this.columnsState;
+
+    for (let i = 0; i < columns.length; i++) {
+      const { key, type } = columns[i];
+
+      for (let j = 0; j < newRows.length; j++) {
+        const prev = rows[j]?.[key];
+        let newValue = newRows[j]?.[key];
+
+        if (newValue !== prev) {
+          if (type.isValid && !type.isValid(newValue)) {
+            newValue = prev;
+            // return;
+            break;
+          }
+          else if (type.preprocess) {
+            newValue = type.preprocess(newValue);
+          }
+
+          this.actionManagerRef.current.execute(this, new EditCellAction(key, j, prev, newValue));
+          return;
+          // break;
+        }
+      }
+    }
+
+    // debugger;
+    setRows(newRows);
+  }
+
+  deleteColumn(index: number | null): void {
+    const [columns, setColumns] = this.columnsState;
+    if (index == null || index <= 0 || index > columns.length) return;
+    setColumns(columns.filter((_, idx) => idx !== index - 1));
+  }
+
+  deleteRow(index: number | null): void {
+    const [rows, setRows] = this.rowsState;
+    if (index == null || index < 0 || index >= rows.length) return;
+    setRows(rows.filter((_, idx) => idx !== index));
+  }
+
+  async editColumn(index: number | null): Promise<void> {
+    if (index === null) return;
+
+    const [columns, setColumns] = this.columnsState;
+    const column = columns[index - 1];
+
+    const unlisten = await listen("editColumnCallback", (event: Event<string>) => {
+      column.name = event.payload;
+      setColumns([...columns]);
+      this.refreshTable();
+      unlisten();
     });
+
+    try {
+      await invoke("edit_column", { name: column.name, type: column.type.text });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async addColumn(): Promise<void> {
+    const unlisten = await listen("addColumnCallback", (event: Event<AddColumnCallbackProps>) => {
+      this.actionManagerRef.current.execute(this,
+        new AddColumnAction(
+          new ColumnModel(event.payload)
+        )
+      );
+      unlisten();
+    });
+
+    try {
+      await invoke("add_column");
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  addRow(): void {
+    const [columns] = this.columnsState;
+    const [rows, setRows] = this.rowsState;
+    setRows([...rows, this.newRow(columns)]);
+  }
+
+  newRow(columns?: ColumnModel[] | ColumnModel): any {
+    const newRow: any = { key: Date.now() };
+    const cols = columns instanceof ColumnModel ? [columns] : (columns ?? this.columnsState[0]);
+    cols.forEach(col => newRow[col.key] = "");
     return newRow;
   }
 
-  async addColumn() {
-    const unlisten = await listen("addColumnCallback", (event: Event<AddColumnCallbackProps>) => {
-      const [columns, setColumns] = this.columnsState;
-      const column = new ColumnModel(event.payload);
-      if (columns.length == 0) {
-        const [, setRows] = this.rowsState;
-        setRows([this.newRow(column)]);
-      }
-      setColumns([...columns, column]);
-      unlisten();
-    });
-    await invoke("add_column").catch((e) => console.error(e));
-  }
-
   getColumns(): Column<any, any>[] {
-    let [columns] = this.columnsState;
-    columns = [OrdinalColumnModel(), ...columns]
-    return columns.map(column => ({
-      name: column.name,
-      key: column.key,
-      editable: column.editable,
+    const [columns] = this.columnsState;
+    debugger;
+    return [OrdinalColumnModel(), ...columns].map(col => ({
+      name: col.name,
+      key: col.key,
+      editable: col.editable,
       frozen: true,
-      resizable: column.resizable,
-      minWidth: column.minWidth,
-      width: column.width,
+      resizable: col.resizable,
+      minWidth: col.minWidth,
+      width: col.width,
       renderEditCell: textEditor,
     }));
   }
 
   getRows(): any[] {
-    let [rows] = this.rowsState;
-    rows = rows.map((row, idx) => {
-      return {
-        order: idx + 1,
-        ...row
-      };
-    });
-    return rows;
+    const [rows] = this.rowsState;
+    const displayRows = rows.map((row, idx) => ({ order: idx + 1, ...row }));
+    console.log(displayRows);
+    return displayRows;
   }
 }
