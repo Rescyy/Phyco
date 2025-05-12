@@ -1,8 +1,14 @@
 export default interface Datatype {
     value: string;
     text: string;
+    isReadonly?: boolean;
     isValid?(value: any): boolean;
     preprocess?(value: string): string;
+}
+
+export type DatatypePayload = {
+    value: string;
+    text: string;
 }
 
 export const NumericalDatatype = {
@@ -36,7 +42,13 @@ export const TextDatatype = {
     }
 }
 
-export const datatypes = [NumericalDatatype, TextDatatype]
+export const FormulaDatatype = {
+    value: 'formula',
+    text: "Formula",
+    isReadonly: true,
+}
+
+export const datatypes = [NumericalDatatype, TextDatatype, FormulaDatatype]
 
 export function getDatatype(type: string) {
     return datatypes.find(datatype => datatype.value === type) as Datatype;

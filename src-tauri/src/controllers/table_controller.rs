@@ -11,16 +11,14 @@ pub fn add_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
             label: ADD_COLUMN_LABEL.to_string(),
             title: ADD_COLUMN_TITLE.to_string(),
             route: ADD_COLUMN_ROUTE.to_string(),
-            height: 220.,
-            width: 220.,
+            height: 400.,
+            width: 400.,
         },
     )
 }
 
 pub fn edit_column<R: Runtime>(
-    app: AppHandle<R>,
-    name: String,
-    r#type: String,
+    app: AppHandle<R>
 ) -> tauri::Result<()> {
     const EDIT_COLUMN_LABEL: &str = "editColumn";
     const EDIT_COLUMN_TITLE: &str = "Edit Column";
@@ -30,9 +28,9 @@ pub fn edit_column<R: Runtime>(
         WindowInfo {
             label: EDIT_COLUMN_LABEL.to_string(),
             title: EDIT_COLUMN_TITLE.to_string(),
-            route: format!["{}?name={}&type={}", EDIT_COLUMN_ROUTE, name, r#type],
-            height: 220.,
-            width: 220.,
+            route: EDIT_COLUMN_ROUTE.to_string(),
+            height: 400.,
+            width: 400.,
         },
     )
 }

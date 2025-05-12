@@ -3,7 +3,7 @@ import { State } from "../Setup";
 
 interface ResizableFooterArgs {
     children?: ReactNode;
-    heightState: State<number>;
+    heightState: [number, (height: number) => void];
 }
 
 export default function ResizableFooter({ children, heightState }: ResizableFooterArgs) {

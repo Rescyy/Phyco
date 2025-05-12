@@ -12,7 +12,12 @@ pub trait SetupControllers<R: Runtime> {
 
 impl<R: Runtime> SetupControllers<R> for Builder<R> {
     fn setup_controllers(self) -> Self {
-        self.invoke_handler(generate_handler![add_column, edit_column, save_project, read_project])
+        self.invoke_handler(generate_handler![
+            add_column,
+            edit_column,
+            save_project,
+            read_project
+        ])
     }
 }
 
@@ -22,12 +27,8 @@ pub fn add_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
 }
 
 #[command]
-pub fn edit_column<R: Runtime>(
-    app: AppHandle<R>,
-    name: String,
-    r#type: String,
-) -> tauri::Result<()> {
-    table_controller::edit_column(app, name, r#type)
+pub fn edit_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
+    table_controller::edit_column(app)
 }
 
 #[command]
@@ -37,7 +38,7 @@ async fn save_project(content: String, filename: String) -> tauri::Result<()> {
 
 #[tauri::command]
 fn read_project(filename: String) -> tauri::Result<OpenProjectModel> {
-  let result = file_controller::read_project(filename)?;
-  info!["{:?}", result];
-  Ok(result)
+    let result = file_controller::read_project(filename)?;
+    info!["{:?}", result];
+    Ok(result)
 }

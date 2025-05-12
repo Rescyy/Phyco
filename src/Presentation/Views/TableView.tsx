@@ -1,5 +1,5 @@
 import { DataGrid, DataGridHandle } from "react-data-grid";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DataManager as DataManager, RowModel } from "../../Application/Manager/DataManager";
 import { ColumnModel } from "../../Application/Models/ColumnModel";
 import ResizableFooter from "./ResizableFooter";
@@ -48,9 +48,7 @@ export default function TableView() {
         setLoading(false);
       }, 0);
     }
-  }, []);
 
-  useEffect(() => {
     const handleResize = () => {
       setGridHeight(window.innerHeight - footerHeight - 16);
     };
@@ -144,12 +142,18 @@ export default function TableView() {
             show={selectedColumn !== null && selectedRow === -1 && selectedColumn !== 0}
           />
           <FunctionalButton
-            onClick={() => dataManager!.deleteColumn(selectedColumn)}
+            onClick={() => {
+              dataManager!.deleteColumn(selectedColumn);
+              unselect();
+            }}
             text="Delete Column"
             show={selectedColumn !== null && selectedRow === -1 && selectedColumn !== 0}
           />
           <FunctionalButton
-            onClick={() => dataManager!.deleteRow(selectedRow)}
+            onClick={() => {
+              dataManager!.deleteRow(selectedRow);
+              unselect();
+            }}
             text="Delete Row"
             show={selectedRow !== null && selectedRow !== -1}
           />

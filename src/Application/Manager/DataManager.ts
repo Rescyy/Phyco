@@ -2,15 +2,16 @@ import { ColumnModel } from "../Models/ColumnModel";
 import { OrdinalColumnModel } from "../Models/OrdinalColumnModel";
 import { Column, textEditor } from "react-data-grid";
 import { invoke } from '@tauri-apps/api/core';
-import { listen, Event } from "@tauri-apps/api/event";
+import { listen, Event, UnlistenFn, emitTo } from "@tauri-apps/api/event";
 import { save } from '@tauri-apps/plugin-dialog';
 import { State } from "../../Presentation/Setup";
-import { ActionManager, AddColumnAction, EditCellAction } from "./ActionManager";
-
-export type AddColumnCallbackProps = {
-  name: string;
-  type: string;
-};
+import { ActionManager, AddColumnAction, AddFormulaColumnAction, AddRowAction, DeleteColumnAction, DeleteRowAction, EditCellAction, EditColumnAction } from "./ActionManager";
+import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
+import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
+import { ColumnValidator } from "../Validation/ColumnValidator";
+import { isResultValid } from "../../Core/Common";
+import { FormulaColumnModel } from "../Models/FormulaColumnModel";
+import { ColumnFormula, ColumnStatisticValues } from "../../Core/ColumnFormula";
 
 export type RowModel = {
   [key: string]: string
@@ -41,8 +42,10 @@ export class DataManager {
   columnsState: State<ColumnModel[]>;
   rowsState: State<RowModel[]>;
   refreshTable: () => void;
+  columnStatisticValues: ColumnStatisticValues = {};
   private filenameRef: React.RefObject<string | null>;
   private actionManagerRef: React.RefObject<ActionManager>;
+  private unlistenFunctions: UnlistenFn[] = [];
 
   constructor({
     columnsState,
@@ -65,6 +68,7 @@ export class DataManager {
     columnsState: [ColumnModel[], React.Dispatch<React.SetStateAction<ColumnModel[]>>];
     rowsState: [RowModel[], React.Dispatch<React.SetStateAction<RowModel[]>>];
   }) {
+    this.dispose();
     this.columnsState = columnsState;
     this.rowsState = rowsState;
   }
@@ -119,7 +123,7 @@ export class DataManager {
   }
 
   editRows(newRows: any[]): void {
-    const [rows, setRows] = this.rowsState;
+    const [rows] = this.rowsState;
     const [columns] = this.columnsState;
 
     for (let i = 0; i < columns.length; i++) {
@@ -132,50 +136,130 @@ export class DataManager {
         if (newValue !== prev) {
           if (type.isValid && !type.isValid(newValue)) {
             newValue = prev;
-            // return;
-            break;
+            return;
           }
-          else if (type.preprocess) {
+
+          if (type.preprocess) {
             newValue = type.preprocess(newValue);
           }
 
-          this.actionManagerRef.current.execute(this, new EditCellAction(key, j, prev, newValue));
+          this.columnStatisticValues[key].stale = true;
+          this.actionManagerRef.current.execute(this, new EditCellAction(key, j, newValue));
           return;
-          // break;
         }
       }
     }
+  }
 
-    // debugger;
-    setRows(newRows);
+  updateFormulaColumns() {
+    const [columns] = this.columnsState;
+    const [, setRows] = this.rowsState;
+
+    /* compute the order in which the formula columns should be computed */
+    setRows(rows => {
+      const formulaColumns = columns.filter(x => x instanceof FormulaColumnModel);
+      if (formulaColumns.length == 0) return rows;
+      const columnDependenciesGraph: any[] = formulaColumns.map(x => {
+        return {
+          key: x.key, dependencies: []
+        };
+      });
+      columnDependenciesGraph.forEach((columnNode, i) => {
+        const formulaColumn = formulaColumns[i];
+        columnNode.dependencies = formulaColumn.formula.columnDependencies.interior.map(x => x.key);
+      });
+      (formulaColumns.length > 1 ? topologicalSort(columnDependenciesGraph)
+      .map(x => formulaColumns.find(y => y.key === x) as FormulaColumnModel) : formulaColumns)
+      .forEach(x => {
+        x.formula.apply(rows, this.columnStatisticValues).forEach((val, i) => {
+          rows[i][x.key] = val.toString();
+        });
+      });
+      return rows;
+    });
+
+    function topologicalSort(
+      graph: { key: string; dependencies: string[] }[]
+    ): string[] {
+      const adjList = new Map<string, string[]>();
+      const visited = new Set<string>();
+      const tempMark = new Set<string>();
+      const result: string[] = [];
+    
+      // Build adjacency list (key -> dependencies)
+      for (const node of graph) {
+        adjList.set(node.key, node.dependencies);
+      }
+    
+      function visit(nodeKey: string) {
+        if (visited.has(nodeKey)) return;
+        if (tempMark.has(nodeKey)) {
+          throw new Error(`Cycle detected involving: ${nodeKey}`);
+        }
+    
+        tempMark.add(nodeKey);
+    
+        const deps = adjList.get(nodeKey) || [];
+        for (const dep of deps) {
+          visit(dep);
+        }
+    
+        tempMark.delete(nodeKey);
+        visited.add(nodeKey);
+        result.push(nodeKey);
+      }
+    
+      for (const node of graph) {
+        if (!visited.has(node.key)) {
+          visit(node.key);
+        }
+      }
+    
+      return result.reverse(); // Reverse to ensure dependencies come before dependents
+    }
   }
 
   deleteColumn(index: number | null): void {
-    const [columns, setColumns] = this.columnsState;
-    if (index == null || index <= 0 || index > columns.length) return;
-    setColumns(columns.filter((_, idx) => idx !== index - 1));
+    if (index === null) return;
+    index--;
+    this.actionManagerRef.current.execute(this, new DeleteColumnAction(index));
   }
 
   deleteRow(index: number | null): void {
-    const [rows, setRows] = this.rowsState;
-    if (index == null || index < 0 || index >= rows.length) return;
-    setRows(rows.filter((_, idx) => idx !== index));
+    if (index === null) return;
+    this.actionManagerRef.current.execute(this, new DeleteRowAction(index));
   }
 
   async editColumn(index: number | null): Promise<void> {
     if (index === null) return;
+    index--;
 
-    const [columns, setColumns] = this.columnsState;
-    const column = columns[index - 1];
+    const [columns] = this.columnsState;
+    const column = columns[index];
 
-    const unlisten = await listen("editColumnCallback", (event: Event<string>) => {
-      column.name = event.payload;
-      setColumns([...columns]);
-      this.refreshTable();
-      unlisten();
+    const unlisten = await listen("editColumnCallback", async (event: Event<EditColumnCallbackModel>) => {
+      const columnValidator = new ColumnValidator(this);
+      const validationResult = columnValidator.validateEditColumn(event.payload, index);
+
+      await emitTo("editColumn", "editColumnCallbackResponse", { name: validationResult });
+
+      if (isResultValid(validationResult)) {
+        const data = event.payload;
+        const newColumn = new ColumnModel(column.name, column.type.value);
+        newColumn.name = data.name;
+        this.actionManagerRef.current.execute(this,
+          new EditColumnAction(
+            index, newColumn
+          )
+        );
+        unlisten();
+      }
     });
 
+    this.unlistenFunctions.push(unlisten);
+
     try {
+      this.unlistenFunctions.push(await column.listenColumnDataRequest());
       await invoke("edit_column", { name: column.name, type: column.type.text });
     } catch (e) {
       console.error(e);
@@ -183,14 +267,33 @@ export class DataManager {
   }
 
   async addColumn(): Promise<void> {
-    const unlisten = await listen("addColumnCallback", (event: Event<AddColumnCallbackProps>) => {
-      this.actionManagerRef.current.execute(this,
-        new AddColumnAction(
-          new ColumnModel(event.payload)
-        )
-      );
-      unlisten();
+    const unlisten = await listen("addColumnCallback", async (event: Event<AddColumnCallbackModel>) => {
+      const [columns] = this.columnsState;
+      const columnValidator = new ColumnValidator(this);
+      const model = event.payload;
+      const validationResult = columnValidator.validateAddColumn(model);
+
+      await emitTo("addColumn", "addColumnCallbackResponse", validationResult);
+
+      if (isResultValid(validationResult)) {
+        if (model.type === 'formula') {
+          this.actionManagerRef.current.execute(this,
+            new AddFormulaColumnAction(
+              new FormulaColumnModel(model.name,
+                new ColumnFormula(columns, model.formula!)
+              )
+            )
+          );
+        } else {
+          const model = new ColumnModel(event.payload);
+          this.columnStatisticValues[model.key] = {stale: false};
+          this.actionManagerRef.current.execute(this, new AddColumnAction(model));
+        }
+        unlisten();
+      }
     });
+
+    this.unlistenFunctions.push(unlisten);
 
     try {
       await invoke("add_column");
@@ -200,9 +303,7 @@ export class DataManager {
   }
 
   addRow(): void {
-    const [columns] = this.columnsState;
-    const [rows, setRows] = this.rowsState;
-    setRows([...rows, this.newRow(columns)]);
+    this.actionManagerRef.current.execute(this, new AddRowAction());
   }
 
   newRow(columns?: ColumnModel[] | ColumnModel): any {
@@ -214,7 +315,7 @@ export class DataManager {
 
   getColumns(): Column<any, any>[] {
     const [columns] = this.columnsState;
-    debugger;
+    console.log("getColumns");
     return [OrdinalColumnModel(), ...columns].map(col => ({
       name: col.name,
       key: col.key,
@@ -224,13 +325,19 @@ export class DataManager {
       minWidth: col.minWidth,
       width: col.width,
       renderEditCell: textEditor,
+      draggable: col.draggable,
+      sortable: true,
     }));
   }
 
   getRows(): any[] {
     const [rows] = this.rowsState;
     const displayRows = rows.map((row, idx) => ({ order: idx + 1, ...row }));
-    console.log(displayRows);
     return displayRows;
+  }
+
+  dispose() {
+    this.unlistenFunctions.forEach(unlisten => unlisten());
+    this.unlistenFunctions = [];
   }
 }

@@ -9,6 +9,7 @@ export function OrdinalColumnModel() {
         resizable: false,
         minWidth: 30,
         editable: false,
+        draggable: false,
     };
 
 }

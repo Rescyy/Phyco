@@ -1,1 +1,1 @@
-export type State<T> = [T, (_: T) => void]
+export type State<T> = [T, React.Dispatch<React.SetStateAction<T>>]
