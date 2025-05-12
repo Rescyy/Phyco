@@ -74,6 +74,7 @@ export class ColumnDependencies {
 
 export class ColumnFormula {
     columnDependencies: ColumnDependencies;
+    columnNames: Set<string> = new Set<string>();
     formula: Formula;
 
     constructor(public columns: ColumnModel[], public rawExpression: string) {
@@ -85,6 +86,7 @@ export class ColumnFormula {
             }
 
             const columnName = variableMatch[1];
+            this.columnNames.add(columnName);
             const column = columns.find(x => x.name === columnName);
             if (column === undefined) {
                 throw this.columnDoesNotExist(columnName, substring);

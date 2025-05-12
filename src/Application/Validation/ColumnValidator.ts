@@ -1,9 +1,11 @@
 import { ColumnFormula } from "../../Core/ColumnFormula";
 import { ValidationResult } from "../../Core/Common";
-import { datatypes } from "../../Core/Datatype";
+import { allDatatypes } from "../../Core/Datatype";
 import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
 import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
 import { DataManager } from "../Manager/DataManager";
+import { ColumnModel } from "../Models/ColumnModel";
+import { FormulaColumnModel } from "../Models/FormulaColumnModel";
 
 export type AddColumnValidationResult = {
     name: ValidationResult;
@@ -31,7 +33,7 @@ export class ColumnValidator {
         }
 
         if (editingColumn.type.value === 'formula') {
-            validationResult.formula = this.validateFormula(value.formula);
+            validationResult.formula = this.validateEditedFormula(value.formula, value.name, idx);
         }
 
         return validationResult;
@@ -48,12 +50,12 @@ export class ColumnValidator {
 
         if (!value.type) {
             validationResult.type.setMessage("Datatype is required");
-        } else if (!datatypes.some(x => x.value === value.type)) {
+        } else if (!allDatatypes.some(x => x.value === value.type)) {
             validationResult.type.setMessage("Datatype does not exist");
         }
 
         if (value.type === 'formula') {
-            validationResult.formula = this.validateFormula(value.formula);
+            validationResult.formula = this.validateFormula(value.formula, value.name);
         }
 
         return validationResult;
@@ -64,11 +66,33 @@ export class ColumnValidator {
         return columns.every((x, i) => x.name !== columnName || i === idx);
     }
 
-    validateFormula(rawExpression: string | undefined): ValidationResult {
+    validateEditedFormula(rawExpression: string | undefined, columnName: string, idx: number): ValidationResult {
         const [columns] = this.dataManager.columnsState;
         if (!rawExpression) return new ValidationResult("Formula is required");
         try {
-            new ColumnFormula(columns, rawExpression);
+            debugger;
+            const column = columns[idx];
+            column.name = columnName;
+            const formula = new ColumnFormula(columns, rawExpression);
+            if (formula.columnDependencies.interior.some(x => x.key === column.key)) {
+                return new ValidationResult("Cannot use column's name inside its formula");
+            }
+            columns[idx] = new FormulaColumnModel(columnName, formula);
+            FormulaColumnModel.topologicalSort(columns); // assert no circular dependencies
+        } catch (e: any) {
+            return new ValidationResult(e.message);
+        }
+        return new ValidationResult();
+    }
+
+    validateFormula(rawExpression: string | undefined, columnName: string): ValidationResult {
+        const [columns] = this.dataManager.columnsState;
+        if (!rawExpression) return new ValidationResult("Formula is required");
+        try {
+            const formula = new ColumnFormula([...columns, new ColumnModel(columnName, "text")], rawExpression);
+            if (formula.columnNames.has(columnName)) {
+                return new ValidationResult("Cannot use column's name inside its formula");
+            }
         } catch (e: any) {
             return new ValidationResult(e.message);
         }

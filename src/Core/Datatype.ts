@@ -11,7 +11,7 @@ export type DatatypePayload = {
     text: string;
 }
 
-export const NumericalDatatype = {
+export const NumericalDatatype: Datatype = {
     value: 'numerical',
     text: 'Numerical',
     isValid: (value: any) => {
@@ -23,18 +23,12 @@ export const NumericalDatatype = {
         }
         return false;
     },
-    preprocess: (value: any) => {
-        if (typeof value === 'number') {
-            return value;
-        }
-        if (typeof value === 'string') {
-            return value.trim();
-        }
-        return false;
+    preprocess: (value: string) => {
+        return value.trim();
     }
 }
 
-export const TextDatatype = {
+export const TextDatatype: Datatype = {
     value: 'text',
     text: "Text",
     preprocess: (value: string) => {
@@ -42,14 +36,15 @@ export const TextDatatype = {
     }
 }
 
-export const FormulaDatatype = {
+export const FormulaDatatype: Datatype = {
     value: 'formula',
     text: "Formula",
     isReadonly: true,
 }
 
-export const datatypes = [NumericalDatatype, TextDatatype, FormulaDatatype]
+export const primitiveDatatypes = [NumericalDatatype, TextDatatype];
+export const allDatatypes = [...primitiveDatatypes, FormulaDatatype]
 
 export function getDatatype(type: string) {
-    return datatypes.find(datatype => datatype.value === type) as Datatype;
+    return allDatatypes.find(datatype => datatype.value === type) as Datatype;
 }

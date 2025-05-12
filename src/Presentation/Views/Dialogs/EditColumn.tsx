@@ -21,7 +21,7 @@ export default function EditColumn() {
     const [name, setName] = useState("");
     const [formula, setFormula] = useState("");
     const [formulaValidation, setFormulaValidation] = useState("");
-    const type = useRef("");
+    const type = useRef<{ value: string, text: string } | undefined>(undefined);
 
     const submitForm = async function () {
         await once("editColumnCallbackResponse", (response: Event<EditColumnCallbackResponse>) => {
@@ -39,25 +39,27 @@ export default function EditColumn() {
                 setFormulaValidation("");
             }
 
+            debugger;
             if (isResultValid(data)) {
                 setNameValidation("");
                 closeCurrentWindow();
             }
         });
-        emitTo("main", "editColumnCallback", { name });
+        emitTo("main", "editColumnCallback", { name, formula });
     };
 
     const [height, setHeight] = useState(window.innerHeight);
     const [width, setWidth] = useState(window.innerWidth);
 
     useEffect(() => {
-        ColumnModel.fetchColumnData("editColumn", (data) => {
+        ColumnModel.fetchData("editColumn", (data) => {
+            console.log(data);
             if (data.type.value === 'formula') {
                 const formulaColumnData = data as FormulaColumnData;
                 setFormula(formulaColumnData.formula);
             }
             setName(data.name);
-            type.current = data.type.text;
+            type.current = data.type;
             setRendered(true);
         });
 
@@ -86,6 +88,7 @@ export default function EditColumn() {
     }, []);
 
     if (isRendered) {
+        console.log(type.current);
         return <>
             <form action={submitForm} id="addColumnForm" >
                 <div
@@ -105,7 +108,7 @@ export default function EditColumn() {
                                 onChange={(e) => setName(e.target.value)}
                             />
                         </div>
-                        <ValidationSpan message={nameValidation}/>
+                        <ValidationSpan message={nameValidation} />
                     </div>
                     <div className="">
                         <label className="block text-xl select-none">
@@ -113,25 +116,27 @@ export default function EditColumn() {
                         </label>
                         <div className="border bg-white border-gray-400 rounded">
                             <div className="p-1 w-full text-gray-500 select-none">
-                                {type.current}
+                                {type.current?.text}
                             </div>
                         </div>
+                        <ValidationSpan message={""} />
                     </div>
                     {
-                        type.current === 'formula' ?
-                            <div className="">
+                        type.current?.value === 'formula' ?
+                            <div className="mt-1">
                                 <label className="block text-xl select-none">
                                     Formula
                                 </label>
-                                <div className="bg-white border rounded border-gray-400">
+                                <div className="bg-white border rounded border-gray-400 h-[100px]">
                                     <textarea
-                                        className="p-1 w-full"
+                                        style={{ resize: "none" }}
+                                        className="w-full p-1 h-[100px]"
                                         autoComplete="off"
                                         value={formula}
                                         onChange={(e) => setFormula(e.target.value)}
                                     />
-                                    <ValidationSpan message={formulaValidation}/>
                                 </div>
+                                <ValidationSpan message={formulaValidation} />
                             </div> : <></>
                     }
                     <div className="">
@@ -153,5 +158,4 @@ export default function EditColumn() {
             </form>
         </>;
     }
-    return <></>;
 }

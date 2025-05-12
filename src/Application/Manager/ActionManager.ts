@@ -1,3 +1,4 @@
+import { ColumnFormula } from "../../Core/ColumnFormula";
 import { ColumnModel } from "../Models/ColumnModel";
 import { FormulaColumnModel } from "../Models/FormulaColumnModel";
 import { DataManager, RowModel } from "./DataManager";
@@ -49,7 +50,7 @@ export class EditCellAction implements Action {
             rows[this.rowIdx][this.columnKey] = this.newValue;
             return [...rows];
         })
-        dataManager.updateFormulaColumns();
+        dataManager.updateFormulaCells();
     }
     undo(dataManager: DataManager): void {
         if (this.prevValue !== null) {
@@ -60,28 +61,25 @@ export class EditCellAction implements Action {
                 }
                 return [...rows];
             })
-            dataManager.updateFormulaColumns();
+            dataManager.updateFormulaCells();
         }
     }
 }
 
 export class AddFormulaColumnAction implements Action {
-    constructor(private column: FormulaColumnModel) {}
+    constructor(private column: FormulaColumnModel) { }
 
     do(dataManager: DataManager): void {
         const [columns, setColumns] = dataManager.columnsState;
-        const newColumns = [...columns, this.column];
         const [rows, setRows] = dataManager.rowsState;
-        if (columns.length === 0) {
-            setRows([dataManager.newRow(this.column)]);
-        } else {
-            const newRows = this.column.formula.apply(rows, dataManager.columnStatisticValues);
-            rows.forEach((row, i) => {
-                const newRow = newRows[i];
-                row[this.column.key] = newRow.toString();
-            });
-            setRows(rows);
-        }
+        const newColumns = [...columns, this.column];
+
+        const newRows = this.column.formula.apply(rows, dataManager.columnStatisticValues);
+        rows.forEach((row, i) => {
+            const newRow = newRows[i];
+            row[this.column.key] = newRow.toString();
+        });
+        setRows(rows);
         setColumns(newColumns);
     }
     undo(dataManager: DataManager): void {
@@ -92,6 +90,40 @@ export class AddFormulaColumnAction implements Action {
             setRows([]);
         }
         setColumns(prevColumns);
+    }
+}
+
+export type EditFormulaColumnActionAttributes = {
+    name: string,
+    formula: ColumnFormula
+};
+
+export class EditFormulaColumnAction implements Action {
+    private prevAttributes: EditFormulaColumnActionAttributes | null = null;
+    constructor(private idx: number, private attributes: EditFormulaColumnActionAttributes) { }
+    do(dataManager: DataManager): void {
+        const [columns, setColumns] = dataManager.columnsState;
+        const formulaColumn = columns[this.idx] as FormulaColumnModel;
+        this.prevAttributes = {
+            name: formulaColumn.name,
+            formula: formulaColumn.formula,
+        };
+        formulaColumn.name = this.attributes.name;
+        formulaColumn.formula = this.attributes.formula;
+        setColumns([...columns]);
+        dataManager.updateFormulaCells({ usingColumns: columns });
+        dataManager.updateExpressionsColumnNames(this.prevAttributes.name, this.attributes.name);
+    }
+    undo(dataManager: DataManager): void {
+        if (this.prevAttributes !== null) {
+            const [columns, setColumns] = dataManager.columnsState;
+            const formulaColumn = columns[this.idx] as FormulaColumnModel;
+            formulaColumn.name = this.prevAttributes.name;
+            formulaColumn.formula = this.prevAttributes.formula;
+            setColumns([...columns]);
+            dataManager.updateFormulaCells({ usingColumns: columns });
+            dataManager.updateExpressionsColumnNames(this.attributes.name, this.prevAttributes.name);
+        }
     }
 }
 
@@ -107,7 +139,6 @@ export class AddColumnAction implements Action {
         }
         setColumns(newColumns);
     }
-
     undo(dataManager: DataManager): void {
         const [columns, setColumns] = dataManager.columnsState;
         const prevColumns = columns.slice(0, -1);
@@ -120,21 +151,23 @@ export class AddColumnAction implements Action {
 }
 
 export class EditColumnAction implements Action {
-    private prevColumn: ColumnModel | null = null;
+    private prevName: string | null = null;
 
-    constructor(private idx: number, private column: ColumnModel) {}
+    constructor(private idx: number, private name: string) { }
 
     do(dataManager: DataManager): void {
         const [columns, setColumns] = dataManager.columnsState;
-        this.prevColumn = columns[this.idx];
-        columns[this.idx] = this.column;
+        this.prevName = columns[this.idx].name;
+        columns[this.idx].name = this.name;
         setColumns([...columns]);
+        dataManager.updateExpressionsColumnNames(this.prevName, this.name);
     }
     undo(dataManager: DataManager): void {
-        if (this.prevColumn !== null) {
+        if (this.prevName !== null) {
             const [columns, setColumns] = dataManager.columnsState;
-            columns[this.idx] = this.prevColumn;
+            columns[this.idx].name = this.prevName;
             setColumns([...columns]);
+            dataManager.updateExpressionsColumnNames(this.name, this.prevName);
         }
     }
 }
@@ -144,7 +177,7 @@ export class AddRowAction implements Action {
         const [rows, setRows] = dataManager.rowsState;
         setRows([...rows, dataManager.newRow()]);
     }
-    
+
     undo(dataManager: DataManager): void {
         const [rows, setRows] = dataManager.rowsState;
         setRows(rows.slice(0, -1));
@@ -181,7 +214,7 @@ export class DeleteColumnAction implements Action {
 export class DeleteRowAction implements Action {
     private deletedRow: RowModel | null = null;
 
-    constructor(private idx: number) {}
+    constructor(private idx: number) { }
 
     do(dataManager: DataManager): void {
         const [rows, setRows] = dataManager.rowsState;
@@ -201,6 +234,6 @@ export class DeleteRowAction implements Action {
                 ...rows.slice(this.idx)
             ];
             setRows(prevRows);
-        }    
+        }
     }
 }

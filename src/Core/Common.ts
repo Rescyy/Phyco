@@ -6,11 +6,16 @@ type ValidationResultObject = {
   [key: string]: ValidationResult
 }
 
+export interface DataRequest {
+  callerLabel: string;
+}
 
 export function isResultValid(obj: ValidationResultObject): boolean {
-  return Object.values(obj).every(v => 
-    v === undefined ||
-    v.result === true
+  return Object.values(obj).every(v => {
+    const und = v === undefined;
+    const res = v.result;
+    return und || res;
+  }
   );
 }
 

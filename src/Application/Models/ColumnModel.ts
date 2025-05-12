@@ -1,9 +1,6 @@
 import { once, UnlistenFn, Event, emitTo } from "@tauri-apps/api/event";
 import Datatype, { getDatatype } from "../../Core/Datatype";
-
-export type ColumnDataRequest = {
-  callerLabel: string,
-};
+import { DataRequest } from "../../Core/Common";
 
 export interface ColumnData {
   name: string,
@@ -39,7 +36,7 @@ export class ColumnModel {
     }
   }
 
-  protected columnDataResponse(): ColumnData {
+  columnData(): ColumnData {
     return {
       name: this.name, type: {
         value: this.type.value,
@@ -48,13 +45,13 @@ export class ColumnModel {
     };
   }
 
-  async listenColumnDataRequest(): Promise<UnlistenFn> {
-    return await once("columnData", (data: Event<ColumnDataRequest>) => {
-      emitTo(data.payload.callerLabel, "columnDataResponse", this.columnDataResponse());
+  async listenDataRequest(): Promise<UnlistenFn> {
+    return await once("columnData", (data: Event<DataRequest>) => {
+      emitTo(data.payload.callerLabel, "columnDataResponse", this.columnData());
     });
   }
 
-  static async fetchColumnData(callerLabel: string, callback: (columnData: ColumnData) => void) {
+  static async fetchData(callerLabel: string, callback: (columnData: ColumnData) => void) {
     once("columnDataResponse", (data: Event<ColumnData>) => callback(data.payload));
     emitTo("main", "columnData", { callerLabel });
   }
