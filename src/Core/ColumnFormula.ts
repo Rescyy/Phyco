@@ -1,5 +1,4 @@
 import { max, mean, median, min, standardDeviation, sum } from "simple-statistics";
-import { RowModel } from "../Application/Manager/DataManager";
 import { ColumnModel } from "../Application/Models/ColumnModel";
 import Formula from "fparser";
 
@@ -13,7 +12,7 @@ function isStatisticType(value: string): value is StatisticType {
 
 export type UnidimensionalStatisticalFunction = (_: number[]) => number;
 
-function getStatisticTypeFunction(value: StatisticType): UnidimensionalStatisticalFunction {
+export function getStatisticTypeFunction(value: StatisticType): UnidimensionalStatisticalFunction {
     switch (value) {
         case "sum":
             return sum;
@@ -30,55 +29,70 @@ function getStatisticTypeFunction(value: StatisticType): UnidimensionalStatistic
     }
 }
 
-export type ColumnDependency = {
-    key: string;
-    types: StatisticType[];
-}
-
-export type StatisticValues = {
-    [statisticType in StatisticType]?: number
-} & {
-    stale: boolean;
-}
+export class StatisticValues {
+    sum?: number;
+    mean?: number;
+    median?: number;
+    stddev?: number;
+    min?: number;
+    max?: number;
+    stale = false;
+};
 
 export type ColumnStatisticValues = {
     [key: string]: StatisticValues
 }
 
+export type StatisticTypeSet = Set<StatisticType>;
+
 export type FormulaInput = {
     [key: string]: {
         [statisticType in StatisticType]?: number;
     } & { val: number }
-
 }
 
-export class ColumnDependencies {
-    interior: ColumnDependency[] = [];
+export class FormulaColumnDependencies {
+    interior: Map<string, StatisticTypeSet> = new Map<string, StatisticTypeSet>();
 
-    constructor() { }
+    get(name: string): StatisticTypeSet {
+        let set = this.interior.get(name);
+        if (set) {
+            return set;
+        }
+        set = new Set<StatisticType>();
+        this.interior.set(name, set);
+        return set;
+    }
 
-    addDependency(columnKey: string, type?: StatisticType) {
-        var dependency = this.interior.find(x => x.key === columnKey);
-        if (dependency) {
-            if (!dependency.types.some(x => x === type) && type) {
-                dependency.types.push(type);
-            }
-        } else {
-            this.interior.push({
-                key: columnKey,
-                types: type === undefined ? [] : [type]
-            });
+    addDependency(name: string, type?: string) {
+        const set = this.get(name);
+        if (type && isStatisticType(type)) {
+            set.add(type);
+        }
+    }
+
+    forEach(callbackFn: (value: StatisticTypeSet, key: string, map: Map<string, StatisticTypeSet>) => void) {
+        this.interior.forEach(callbackFn);
+    }
+
+    has(name: string): boolean {
+        return this.interior.has(name);
+    }
+
+    replace(oldName: string, newName: string) {
+        const set = this.interior.get(oldName);
+        if (set) {
+            this.interior.delete(oldName);
+            this.interior.set(newName, set);
         }
     }
 }
 
 export class ColumnFormula {
-    columnDependencies: ColumnDependencies;
-    columnNames: Set<string> = new Set<string>();
+    dependencies: FormulaColumnDependencies = new FormulaColumnDependencies();
     formula: Formula;
 
     constructor(public columns: ColumnModel[], public rawExpression: string) {
-        this.columnDependencies = new ColumnDependencies();
         const evaluatedExpression = rawExpression.replace(/\[[^\[\]]*\]/g, (substring) => {
             const variableMatch = /^\[([^\[\]\.]+)(\.([^\[\]\.]+))?\]$/g.exec(substring);
             if (variableMatch === null) {
@@ -86,7 +100,6 @@ export class ColumnFormula {
             }
 
             const columnName = variableMatch[1];
-            this.columnNames.add(columnName);
             const column = columns.find(x => x.name === columnName);
             if (column === undefined) {
                 throw this.columnDoesNotExist(columnName, substring);
@@ -96,14 +109,14 @@ export class ColumnFormula {
 
             switch (columnAttributes.length) {
                 case 2:
-                    this.columnDependencies.addDependency(column.key);
+                    this.dependencies.addDependency(column.name);
                     return `[${column.key}.val]`;
                 case 4:
                     const statisticType = columnAttributes[3];
                     if (!isStatisticType(statisticType)) {
                         throw this.notStatisticType(statisticType, substring);
                     }
-                    this.columnDependencies.addDependency(column.key, statisticType);
+                    this.dependencies.addDependency(column.name, statisticType);
                     return `[${column.key}.${statisticType}]`;
                 default:
                     throw this.badVariableSyntax(substring);
@@ -112,39 +125,8 @@ export class ColumnFormula {
         this.formula = new Formula(evaluatedExpression, { memoization: true });
     }
 
-    /* return the new column with the formula applied using the columns' rows */
-    apply(rows: RowModel[], columnStatisticValues: ColumnStatisticValues): number[] {
-        this.columnDependencies.interior.forEach(dependency => {
-            if (columnStatisticValues[dependency.key].stale) {
-                const statisticValues: StatisticValues = {stale: false};
-
-                const columnValues = rows.map(x =>
-                    parseFloat(x[dependency.key])
-                ).filter(x => !Number.isNaN(x));
-    
-                dependency.types.forEach(type => {
-                    statisticValues[type] = getStatisticTypeFunction(type)(columnValues);
-                });
-    
-                columnStatisticValues[dependency.key] = statisticValues;
-            }
-        });
-
-        return rows.map(row => {
-            const formulaInput: FormulaInput = {};
-            if (this.columnDependencies.interior.some(dependency => {
-                const key = dependency.key;
-                const rowValue = parseFloat(row[key]);
-                if (Number.isNaN(rowValue)) return true;
-                formulaInput[key] = {
-                    val: parseFloat(row[key]),
-                    ...columnStatisticValues[key]
-                };
-                return false;
-            })) return NaN;
-            console.log(formulaInput);
-            return this.formula.evaluate(formulaInput) as number;
-        });
+    evaluate(inputs: FormulaInput[]): number[] {
+        return inputs.map(input => this.formula.evaluate(input) as number);
     }
 
     badVariableSyntax(variable: string): Error {

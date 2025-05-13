@@ -1,5 +1,6 @@
+import { ColumnDependencyGraph } from "../../Core/ColumnDependenciesGraph";
 import { ColumnFormula } from "../../Core/ColumnFormula";
-import { ValidationResult } from "../../Core/Common";
+import { isResultValid, ValidationResult } from "../../Core/Common";
 import { allDatatypes } from "../../Core/Datatype";
 import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
 import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
@@ -25,26 +26,34 @@ export class ColumnValidator {
         const validationResult: EditColumnValidationResult = { name: new ValidationResult() };
         const [columns] = this.dataManager.columnsState;
         const editingColumn = columns[idx];
+        const testName = value.name.trim();
+        const testFormula = value.formula?.trim();
 
         if (!value) {
             validationResult.name.setMessage("Name is required");
-        } else if (!this.isColumnNameUnique(value.name, idx)) {
+        } else if (!this.isColumnNameUnique(testName, idx)) {
             validationResult.name.setMessage("Column name is not unique");
         }
 
         if (editingColumn.type.value === 'formula') {
-            validationResult.formula = this.validateEditedFormula(value.formula, value.name, idx);
+            validationResult.formula = this.validateEditedFormula(testFormula, testName, idx);
         }
 
+        if (isResultValid(validationResult)) {
+            value.name = testName;
+            value.formula = testFormula;
+        }
         return validationResult;
     }
 
     validateAddColumn(value: AddColumnCallbackModel): AddColumnValidationResult {
         const validationResult: AddColumnValidationResult = { name: new ValidationResult(), type: new ValidationResult() };
+        const testName = value.name.trim();
+        const testFormula = value.formula?.trim();
 
         if (!value.name) {
             validationResult.name.setMessage("Name is required");
-        } else if (!this.isColumnNameUnique(value.name)) {
+        } else if (!this.isColumnNameUnique(testName)) {
             validationResult.name.setMessage("Column name is not unique");
         }
 
@@ -55,10 +64,18 @@ export class ColumnValidator {
         }
 
         if (value.type === 'formula') {
-            validationResult.formula = this.validateFormula(value.formula, value.name);
+            validationResult.formula = this.validateFormula(testFormula, testName);
         }
-
+        
+        if (isResultValid(validationResult)) {
+            value.name = testName;
+            value.formula = testFormula;
+        }
         return validationResult;
+    }
+
+    nameAlphabetical(name: string): boolean {
+        return Boolean(/^[a-zA-Z]+$/g.exec(name));
     }
 
     isColumnNameUnique(columnName: string, idx?: number): boolean {
@@ -72,13 +89,14 @@ export class ColumnValidator {
         try {
             debugger;
             const column = columns[idx];
-            column.name = columnName;
             const formula = new ColumnFormula(columns, rawExpression);
-            if (formula.columnDependencies.interior.some(x => x.key === column.key)) {
+            if (formula.dependencies.has(columnName)) {
                 return new ValidationResult("Cannot use column's name inside its formula");
             }
-            columns[idx] = new FormulaColumnModel(columnName, formula);
-            FormulaColumnModel.topologicalSort(columns); // assert no circular dependencies
+            const newColumn = new FormulaColumnModel(columnName, formula, column.key);
+            if (this.dataManager.dependencyGraph.checkCircularDependencyWithModel(this.dataManager, newColumn)) {
+                return new ValidationResult("Cannot have circular dependency between columns");
+            }
         } catch (e: any) {
             return new ValidationResult(e.message);
         }
@@ -90,7 +108,7 @@ export class ColumnValidator {
         if (!rawExpression) return new ValidationResult("Formula is required");
         try {
             const formula = new ColumnFormula([...columns, new ColumnModel(columnName, "text")], rawExpression);
-            if (formula.columnNames.has(columnName)) {
+            if (formula.dependencies.has(columnName)) {
                 return new ValidationResult("Cannot use column's name inside its formula");
             }
         } catch (e: any) {

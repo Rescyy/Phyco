@@ -11,5 +11,4 @@ export function OrdinalColumnModel() {
         editable: false,
         draggable: false,
     };
-
 }

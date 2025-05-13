@@ -44,13 +44,14 @@ export class EditCellAction implements Action {
 
     constructor(private columnKey: string, private rowIdx: number, private newValue: string) { }
     do(dataManager: DataManager): void {
+        debugger;
         const [rows, setRows] = dataManager.rowsState;
         this.prevValue = rows[this.rowIdx][this.columnKey];
         setRows(rows => {
             rows[this.rowIdx][this.columnKey] = this.newValue;
             return [...rows];
-        })
-        dataManager.updateFormulaCells();
+        });
+        // dataManager.updateFormulaCells();
     }
     undo(dataManager: DataManager): void {
         if (this.prevValue !== null) {
@@ -61,35 +62,8 @@ export class EditCellAction implements Action {
                 }
                 return [...rows];
             })
-            dataManager.updateFormulaCells();
+            // dataManager.updateFormulaCells();
         }
-    }
-}
-
-export class AddFormulaColumnAction implements Action {
-    constructor(private column: FormulaColumnModel) { }
-
-    do(dataManager: DataManager): void {
-        const [columns, setColumns] = dataManager.columnsState;
-        const [rows, setRows] = dataManager.rowsState;
-        const newColumns = [...columns, this.column];
-
-        const newRows = this.column.formula.apply(rows, dataManager.columnStatisticValues);
-        rows.forEach((row, i) => {
-            const newRow = newRows[i];
-            row[this.column.key] = newRow.toString();
-        });
-        setRows(rows);
-        setColumns(newColumns);
-    }
-    undo(dataManager: DataManager): void {
-        const [columns, setColumns] = dataManager.columnsState;
-        const prevColumns = columns.slice(0, -1);
-        if (prevColumns.length === 0) {
-            const [, setRows] = dataManager.rowsState;
-            setRows([]);
-        }
-        setColumns(prevColumns);
     }
 }
 
@@ -111,8 +85,8 @@ export class EditFormulaColumnAction implements Action {
         formulaColumn.name = this.attributes.name;
         formulaColumn.formula = this.attributes.formula;
         setColumns([...columns]);
-        dataManager.updateFormulaCells({ usingColumns: columns });
-        dataManager.updateExpressionsColumnNames(this.prevAttributes.name, this.attributes.name);
+        // dataManager.updateFormulaCells({ usingColumns: columns });
+        // dataManager.updateFormulaColumns(this.prevAttributes.name, this.attributes.name);
     }
     undo(dataManager: DataManager): void {
         if (this.prevAttributes !== null) {
@@ -121,8 +95,8 @@ export class EditFormulaColumnAction implements Action {
             formulaColumn.name = this.prevAttributes.name;
             formulaColumn.formula = this.prevAttributes.formula;
             setColumns([...columns]);
-            dataManager.updateFormulaCells({ usingColumns: columns });
-            dataManager.updateExpressionsColumnNames(this.attributes.name, this.prevAttributes.name);
+            // dataManager.updateFormulaCells({ usingColumns: columns });
+            // dataManager.updateFormulaColumns(this.attributes.name, this.prevAttributes.name);
         }
     }
 }
@@ -131,16 +105,18 @@ export class AddColumnAction implements Action {
     constructor(private column: ColumnModel) { }
 
     do(dataManager: DataManager): void {
+        debugger;
         const [columns, setColumns] = dataManager.columnsState;
+        const dependencies = this.column.getDependencies(columns);
+        dataManager.dependencyGraph.addDependencies(dependencies);
+        this.column.initialize(dataManager);
         const newColumns = [...columns, this.column];
-        if (columns.length === 0) {
-            const [, setRows] = dataManager.rowsState;
-            setRows([dataManager.newRow(this.column)]);
-        }
         setColumns(newColumns);
     }
     undo(dataManager: DataManager): void {
+        debugger;
         const [columns, setColumns] = dataManager.columnsState;
+        dataManager.dependencyGraph.removeDependencies(columns[columns.length - 1].key);
         const prevColumns = columns.slice(0, -1);
         if (prevColumns.length === 0) {
             const [, setRows] = dataManager.rowsState;
@@ -151,24 +127,39 @@ export class AddColumnAction implements Action {
 }
 
 export class EditColumnAction implements Action {
-    private prevName: string | null = null;
+    private prevColumn: ColumnModel | null = null;
 
-    constructor(private idx: number, private name: string) { }
+    constructor(private newColumn: ColumnModel, private idx: number) { }
 
     do(dataManager: DataManager): void {
-        const [columns, setColumns] = dataManager.columnsState;
-        this.prevName = columns[this.idx].name;
-        columns[this.idx].name = this.name;
-        setColumns([...columns]);
-        dataManager.updateExpressionsColumnNames(this.prevName, this.name);
+        const [columns] = dataManager.columnsState;
+        this.prevColumn = columns[this.idx];
+        this.swap(dataManager, this.prevColumn, this.newColumn);
     }
     undo(dataManager: DataManager): void {
-        if (this.prevName !== null) {
-            const [columns, setColumns] = dataManager.columnsState;
-            columns[this.idx].name = this.prevName;
-            setColumns([...columns]);
-            dataManager.updateExpressionsColumnNames(this.name, this.prevName);
+        if (this.prevColumn) {
+            this.swap(dataManager, this.newColumn, this.prevColumn);
         }
+    }
+    private swap(dataManager: DataManager, oldColumn:ColumnModel, newColumn: ColumnModel) {
+        const [columns, setColumns] = dataManager.columnsState;
+        const dependencies = newColumn.getDependencies(columns);
+        dataManager.dependencyGraph.removeDependencies(newColumn.key);
+        dataManager.dependencyGraph.addDependencies(dependencies);
+        if (oldColumn.name !== newColumn.name) {
+            dataManager.dependencyGraph.queryDependents(newColumn.key).forEach(dependency => {
+                const column = dataManager.getColumn(dependency.dependent);
+                column?.onDependencyNameEdit(dataManager, oldColumn!.name, newColumn.name);
+            });
+        }
+        if (newColumn.update(dataManager, oldColumn)) {
+            dataManager.dependencyGraph.propagateDependents(newColumn.key, (key, changedDependencies) => {
+                const column = dataManager.getColumn(key);
+                return column?.onDependencyUpdate(dataManager, changedDependencies) ?? false;
+            });
+        }
+        columns[this.idx] = newColumn;
+        setColumns([...columns]);
     }
 }
 
