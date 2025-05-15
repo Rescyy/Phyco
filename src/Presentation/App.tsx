@@ -4,7 +4,8 @@ import Layout from './Views/Layout';
 import TableView from './Views/TableView';
 import AddColumn from './Views/Dialogs/AddColumn';
 import EditColumn from './Views/Dialogs/EditColumn';
-import { Test } from './Views/Test';
+import Test from './Views/Test';
+import DeleteColumn from './Views/Dialogs/DeleteColumn';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         </Route>
         <Route path="addColumn" element={<AddColumn />} />
         <Route path="editColumn" element={<EditColumn />} />
+        <Route path="deleteColumn" element={<DeleteColumn />}/>
         <Route path="test" element={<Test />} />
       </Routes>
     </BrowserRouter>

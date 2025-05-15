@@ -36,7 +36,6 @@ export class StatisticValues {
     stddev?: number;
     min?: number;
     max?: number;
-    stale = false;
 };
 
 export type ColumnStatisticValues = {
@@ -45,11 +44,16 @@ export type ColumnStatisticValues = {
 
 export type StatisticTypeSet = Set<StatisticType>;
 
-export type FormulaInput = {
-    [key: string]: {
-        [statisticType in StatisticType]?: number;
-    } & { val: number }
-}
+export class FormulaInput {
+    constructor(public index: number) { this.index = index + 1; }
+    data: {
+        [key: string]: {
+            [statisticType in StatisticType]?: number;
+        } & { val: number }
+    } = {};
+};
+
+
 
 export class FormulaColumnDependencies {
     interior: Map<string, StatisticTypeSet> = new Map<string, StatisticTypeSet>();
@@ -94,6 +98,7 @@ export class ColumnFormula {
 
     constructor(public columns: ColumnModel[], public rawExpression: string) {
         const evaluatedExpression = rawExpression.replace(/\[[^\[\]]*\]/g, (substring) => {
+            if (substring === "[index]" || substring === "[i]") return "[index]";
             const variableMatch = /^\[([^\[\]\.]+)(\.([^\[\]\.]+))?\]$/g.exec(substring);
             if (variableMatch === null) {
                 throw this.badVariableSyntax(substring);
@@ -104,20 +109,23 @@ export class ColumnFormula {
             if (column === undefined) {
                 throw this.columnDoesNotExist(columnName, substring);
             }
+            if (column.type.value === 'text') {
+                throw this.textColumnNotAllowed(columnName, substring);
+            }
 
             const columnAttributes = variableMatch.filter(x => x !== undefined);
 
             switch (columnAttributes.length) {
                 case 2:
                     this.dependencies.addDependency(column.name);
-                    return `[${column.key}.val]`;
+                    return `[data.${column.key}.val]`;
                 case 4:
                     const statisticType = columnAttributes[3];
                     if (!isStatisticType(statisticType)) {
                         throw this.notStatisticType(statisticType, substring);
                     }
                     this.dependencies.addDependency(column.name, statisticType);
-                    return `[${column.key}.${statisticType}]`;
+                    return `[data.${column.key}.${statisticType}]`;
                 default:
                     throw this.badVariableSyntax(substring);
             }
@@ -125,8 +133,14 @@ export class ColumnFormula {
         this.formula = new Formula(evaluatedExpression, { memoization: true });
     }
 
-    evaluate(inputs: FormulaInput[]): number[] {
-        return inputs.map(input => this.formula.evaluate(input) as number);
+    evaluateRange(inputs: FormulaInput[]): number[] {
+        return inputs.map(input => this.evaluate(input));
+    }
+
+    evaluate(input: FormulaInput): number {
+        const result = this.formula.evaluate({ ...input }) as number;
+        if (typeof result !== 'number') throw new Error("Formula produced wrong type");
+        return result;
     }
 
     badVariableSyntax(variable: string): Error {
@@ -134,10 +148,14 @@ export class ColumnFormula {
     }
 
     columnDoesNotExist(name: string, variable: string): Error {
-        return new Error(`Column with name '${name}' does not exist: ${variable}`);
+        return new Error(`Column '${name}' does not exist: ${variable}`);
     }
 
     notStatisticType(type: string, variable: string): Error {
         return new Error(`'${type}' is not a statistic type: ${variable}`);
+    }
+
+    textColumnNotAllowed(name: string, variable: string): Error {
+        return new Error(`Can't use column '${name}' of type text: ${variable}`);
     }
 }

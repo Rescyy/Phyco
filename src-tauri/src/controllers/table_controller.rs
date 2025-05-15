@@ -17,9 +17,7 @@ pub fn add_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
     )
 }
 
-pub fn edit_column<R: Runtime>(
-    app: AppHandle<R>
-) -> tauri::Result<()> {
+pub fn edit_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
     const EDIT_COLUMN_LABEL: &str = "editColumn";
     const EDIT_COLUMN_TITLE: &str = "Edit Column";
     const EDIT_COLUMN_ROUTE: &str = "editColumn";
@@ -31,6 +29,22 @@ pub fn edit_column<R: Runtime>(
             route: EDIT_COLUMN_ROUTE.to_string(),
             height: 400.,
             width: 400.,
+        },
+    )
+}
+
+pub fn delete_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
+    const DELETE_COLUMN_LABEL: &str = "deleteColumn";
+    const DELETE_COLUMN_TITLE: &str = "Delete Column";
+    const DELETE_COLUMN_ROUTE: &str = "deleteColumn";
+    open_child_window(
+        app,
+        WindowInfo {
+            label: DELETE_COLUMN_LABEL.to_string(),
+            title: DELETE_COLUMN_TITLE.to_string(),
+            route: DELETE_COLUMN_ROUTE.to_string(),
+            height: 220.,
+            width: 300.,
         },
     )
 }

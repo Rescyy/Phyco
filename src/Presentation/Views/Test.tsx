@@ -1,7 +1,7 @@
 import { ColumnModel } from "../../Application/Models/ColumnModel";
 import { ColumnFormula } from "../../Core/ColumnFormula";
 
-export function Test() {
+export default function Test() {
     var col1 = new ColumnModel("asd", "numerical");
     var columnModels = [col1];
 

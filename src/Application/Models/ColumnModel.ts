@@ -27,7 +27,7 @@ export class ColumnModel {
   draggable = true;
   attribute: any = {};
 
-  constructor(nameOrPayload: string | {name: string, type: string}, type?: string, key?: string) {
+  constructor(nameOrPayload: string | { name: string, type: string }, type?: string, key?: string) {
     if (typeof nameOrPayload === "object" && nameOrPayload !== null) {
       // Construct from payload
       this.name = nameOrPayload.name;
@@ -61,33 +61,47 @@ export class ColumnModel {
     emitTo("main", "columnData", { callerLabel });
   }
 
-  getDependencies(columns: ColumnModel[]): ColumnDependency[] {
+  getDependencies(_columns: ColumnModel[]): ColumnDependency[] {
     return [];
   }
 
   /* dataManager does not include the column at this point */
-  initialize(dataManager: DataManager) {
-    const [columns] = dataManager.columnsState;
-    if (columns.length == 0) {
-      const [,setRows] = dataManager.rowsState;
-      setRows([dataManager.newRow(this)]);
-    }
+  initialize(_dataManager: DataManager) {
+
   }
 
-  update(dataManager: DataManager, oldColumn: ColumnModel): boolean {
+  update(_dataManager: DataManager, _oldColumn: ColumnModel): boolean {
     return false;
   }
 
-  updateCell(dataManager: DataManager, rowIdx: number, idx: number, newValue: string): boolean {
+  updateCell(dataManager: DataManager, rowIdx: number, columnKey: string, newValue: string): boolean {
+    const [, setRows] = dataManager.rowsState;
+
+    setRows(rows => {
+      rows[rowIdx][columnKey] = newValue;
+      return [...rows];
+    });
     return true;
   }
 
-  onDependencyNameEdit(dataManager: DataManager, oldName: string, newName: string) {
+  onDependencyNameEdit(_dataManager: DataManager, _oldName: string, _newName: string) {
+    throw new Error("Unreachable code. ColumnModel doesn't have column dependencies");
+  }
+
+  /* return true if column row values were modified */
+  onDependencyUpdate(_dataManager: DataManager, _changedDependencies: string[]): boolean {
+    throw new Error("Unreachable code. ColumnModel doesn't have column dependencies.");
+  }
+
+  newRow(_dataManager: DataManager, _index: number): string {
+    return "";
+  }
+
+  onRowDeleted(_dataManager: DataManager, _index: number) {
 
   }
 
-  /* return true if column internals were modified */
-  onDependencyUpdate(dataManager: DataManager, changedDependencies: string[]): boolean {
-    return false;
+  onRowAdded(_dataManager: DataManager, _index: number) {
+
   }
 }

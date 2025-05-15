@@ -23,16 +23,32 @@ export class ColumnDependencyGraph {
         this.interior = this.interior.filter(x => x.dependent !== key && x.dependee !== key);
     }
 
+    popNodes(keys: string[]) {
+        const result = this.interior.filter(x => keys.some(key => key === x.dependent || key === x.dependee));
+        this.interior = this.interior.filter(x => keys.some(key => key !== x.dependee && key !== x.dependent));
+        return result;
+    }
+
     addDependency(dependency: ColumnDependency) {
         if (this.checkCircularDependency(dependency.dependent, dependency.dependee)) {
             throw new Error("Circular dependency encountered");
         }
-        this.interior.push(dependency);
+        this.addDependencyUnchecked(dependency);
     }
 
     addDependencies(dependencies: ColumnDependency[]) {
         dependencies.forEach(dependency => {
             this.addDependency(dependency);
+        });
+    }
+
+    addDependencyUnchecked(dependency: ColumnDependency) {
+        this.interior.push(dependency);
+    }
+
+    addDependenciesUnchecked(dependencies: ColumnDependency[]) {
+        dependencies.forEach(dependency => {
+            this.addDependencyUnchecked(dependency);
         });
     }
 
@@ -67,9 +83,9 @@ export class ColumnDependencyGraph {
         try {
             testGraph.addDependencies(testDependencies);
         } catch {
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
 
     traverseDependents(key: string): string[] {
@@ -97,7 +113,7 @@ export class ColumnDependencyGraph {
         hasValueChanged: (key: string, changedDependencies: string[]) => boolean
     ): string[] {
         const visited = new Set<string>();
-        const changed = new Set<string>();
+        const changed = new Set<string>([key]);
 
         const traverse = (currentKey: string) => {
             if (visited.has(currentKey)) return;
@@ -125,5 +141,37 @@ export class ColumnDependencyGraph {
         }
 
         return Array.from(changed);
+    }
+
+    /* starts from the most dependent */
+    topologicalSort(): string[] {
+        const visited = new Set<string>();
+        const result: string[] = [];
+
+        const dfs = (node: string) => {
+            if (visited.has(node)) return;
+            visited.add(node);
+
+            const dependents = this.queryDependents(node);
+            for (const dep of dependents) {
+                dfs(dep.dependent);
+            }
+
+            result.push(node);
+        };
+
+        // Get all unique nodes in the graph
+        const allKeys = new Set<string>();
+        for (const { dependent, dependee } of this.interior) {
+            allKeys.add(dependent);
+            allKeys.add(dependee);
+        }
+
+        // Visit all nodes to ensure complete coverage
+        for (const key of allKeys) {
+            dfs(key);
+        }
+
+        return result;
     }
 }

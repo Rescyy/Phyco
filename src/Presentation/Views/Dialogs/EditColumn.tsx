@@ -93,8 +93,8 @@ export default function EditColumn() {
             <form action={submitForm} id="addColumnForm" >
                 <div
                     style={{ height: height, width: width }}
-                    className={`bg-gray-100 px-5 flex flex-col justify-around`}>
-                    <div className="">
+                    className={`bg-gray-100 px-5 py-3 flex flex-col items-center`}>
+                    <div className="w-75">
                         <label className="block text-xl select-none">
                             Name
                         </label>
@@ -110,7 +110,7 @@ export default function EditColumn() {
                         </div>
                         <ValidationSpan message={nameValidation} />
                     </div>
-                    <div className="">
+                    <div className="w-75">
                         <label className="block text-xl select-none">
                             Datatype
                         </label>
@@ -123,7 +123,7 @@ export default function EditColumn() {
                     </div>
                     {
                         type.current?.value === 'formula' ?
-                            <div className="mt-1">
+                            <div className="mt-1 w-75">
                                 <label className="block text-xl select-none">
                                     Formula
                                 </label>
@@ -139,7 +139,8 @@ export default function EditColumn() {
                                 <ValidationSpan message={formulaValidation} />
                             </div> : <></>
                     }
-                    <div className="">
+                    <div className="flex-1"></div>
+                    <div className="w-75">
                         <div className="flex justify-between gap-5">
                             <button
                                 type="button"

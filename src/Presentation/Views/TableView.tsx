@@ -109,18 +109,20 @@ export default function TableView() {
     }
 
     return (
-      <DataGrid
-        ref={tableRef}
-        key={gridHeight + columns.length + time}
-        columns={dataManager!.getColumns()}
-        rows={dataManager!.getRows()}
-        rowKeyGetter={(row) => row.key}
-        style={{ height: gridHeight }}
-        className="w-full h-full fill-grid"
-        onRowsChange={(rows) => dataManager!.editRows(rows)}
-        onSelectedCellChange={handleCellSelect}
-        onCellClick={handleCellSelect}
-      />
+      <div style={{ height: gridHeight }}>
+        <DataGrid
+          ref={tableRef}
+          key={gridHeight + columns.length + time}
+          columns={dataManager!.getColumns()}
+          rows={dataManager!.getRows()}
+          rowKeyGetter={(row) => row.key}
+          style={{ height: gridHeight }}
+          className="w-full h-full fill-grid"
+          onRowsChange={(rows) => dataManager!.editRows(rows)}
+          onSelectedCellChange={handleCellSelect}
+          onCellClick={handleCellSelect}
+        />
+      </div>
     );
   };
 
@@ -129,8 +131,7 @@ export default function TableView() {
       <div className="flex-1">
         <div className="p-2 m-1 flex gap-1 flex-wrap">
           <FunctionalButton onClick={() => dataManager!.addColumn()} text="Add Column" />
-          <FunctionalButton onClick={() => dataManager!.addRow()} text="Add Row" disabled={columns.length === 0} />
-          <FunctionalButton text="Start Recording" disabled />
+          <FunctionalButton onClick={() => dataManager!.addRow()} text="Add Row" show={columns.length !== 0} />
         </div>
       </div>
       <div className="w-2 bg-zinc-400 flex-none" />

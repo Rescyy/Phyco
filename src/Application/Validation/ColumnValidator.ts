@@ -1,4 +1,3 @@
-import { ColumnDependencyGraph } from "../../Core/ColumnDependenciesGraph";
 import { ColumnFormula } from "../../Core/ColumnFormula";
 import { isResultValid, ValidationResult } from "../../Core/Common";
 import { allDatatypes } from "../../Core/Datatype";
@@ -55,6 +54,8 @@ export class ColumnValidator {
             validationResult.name.setMessage("Name is required");
         } else if (!this.isColumnNameUnique(testName)) {
             validationResult.name.setMessage("Column name is not unique");
+        } else if (!this.nameAlphabetical(testName)) {
+            validationResult.name.setMessage("Column name can't contain special characters")
         }
 
         if (!value.type) {
@@ -87,7 +88,6 @@ export class ColumnValidator {
         const [columns] = this.dataManager.columnsState;
         if (!rawExpression) return new ValidationResult("Formula is required");
         try {
-            debugger;
             const column = columns[idx];
             const formula = new ColumnFormula(columns, rawExpression);
             if (formula.dependencies.has(columnName)) {

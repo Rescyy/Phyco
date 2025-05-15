@@ -1,4 +1,4 @@
-check if topologicalSort works correctly
+check if topologicalSort works correctly -> reworked into propagateDependents
 check why can't write formula that depends on other column
 handle column deletion when having dependending columns
 implement saving and opening project file

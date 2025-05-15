@@ -15,6 +15,7 @@ impl<R: Runtime> SetupControllers<R> for Builder<R> {
         self.invoke_handler(generate_handler![
             add_column,
             edit_column,
+            delete_column,
             save_project,
             read_project
         ])
@@ -29,6 +30,11 @@ pub fn add_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
 #[command]
 pub fn edit_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
     table_controller::edit_column(app)
+}
+
+#[command]
+pub fn delete_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
+    table_controller::delete_column(app)
 }
 
 #[command]

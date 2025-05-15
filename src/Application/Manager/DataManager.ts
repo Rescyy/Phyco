@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, Event, UnlistenFn, emitTo, once } from "@tauri-apps/api/event";
 import { save } from '@tauri-apps/plugin-dialog';
 import { State } from "../../Presentation/Setup";
-import { ActionManager, AddColumnAction,  AddRowAction, DeleteColumnAction, DeleteRowAction, EditCellAction, EditColumnAction } from "./ActionManager";
+import { ActionManager, AddColumnAction, AddRowAction, DeleteColumnAction, DeleteRowAction, EditCellAction, EditColumnAction } from "./ActionManager";
 import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
 import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
 import { ColumnValidator } from "../Validation/ColumnValidator";
@@ -13,6 +13,7 @@ import { DataRequest, isResultValid } from "../../Core/Common";
 import { FormulaColumnModel } from "../Models/FormulaColumnModel";
 import { ColumnFormula } from "../../Core/ColumnFormula";
 import { ColumnDependencyGraph } from "../../Core/ColumnDependenciesGraph";
+import { listenDeleteColumnCallback, listenDeleteColumnDetailsRequest } from "../../Presentation/Views/Dialogs/DeleteColumn";
 
 export type RowModel = {
   [key: string]: string
@@ -128,10 +129,21 @@ export class DataManager {
     }
   }
 
+  applyTopological(func: (column: ColumnModel) => void) {
+    const [columns] = this.columnsState;
+    const sortedColumns = this.dependencyGraph.topologicalSort().reverse().map(x => this.getColumn(x)!);
+    const freeColumns = columns.filter(column => !sortedColumns.some(x => x.key === column.key));
+    sortedColumns.forEach(column => {
+      func(column);
+    });
+    freeColumns.forEach(column => {
+      func(column);
+    });
+  }
+
   editRows(newRows: any[]): void {
     const [rows] = this.rowsState;
     const [columns] = this.columnsState;
-    debugger;
 
     for (let i = 0; i < columns.length; i++) {
       const { key, type } = columns[i];
@@ -163,14 +175,25 @@ export class DataManager {
   }
 
   getRow(key: string) {
-      const rows = this.rowsState[0];
-      return rows.map(row => row[key]);
+    const rows = this.rowsState[0];
+    return rows.map(row => row[key]);
   }
 
-  deleteColumn(index: number | null): void {
+  async deleteColumn(index: number | null) {
     if (index === null) return;
     index--;
-    this.actionManagerRef.current.execute(this, new DeleteColumnAction(index));
+    this.dispose();
+    this.unlistenFunctions.push(await listenDeleteColumnDetailsRequest(this, index));
+    this.unlistenFunctions.push(await listenDeleteColumnCallback((model) => {
+      if (model.confirm) {
+        this.actionManagerRef.current.execute(this, new DeleteColumnAction(index));
+      }
+    }));
+    try {
+      await invoke("delete_column");
+    } catch (e) {
+      console.log(e);
+    }
   }
 
   deleteRow(index: number | null): void {
@@ -187,7 +210,6 @@ export class DataManager {
 
     const unlisten = await listen("editColumnCallback", async (event: Event<EditColumnCallbackModel>) => {
       const columnValidator = new ColumnValidator(this);
-      debugger;
       const validationResult = columnValidator.validateEditColumn(event.payload, index);
 
       await emitTo("editColumn", "editColumnCallbackResponse", validationResult);
@@ -202,11 +224,7 @@ export class DataManager {
         } else {
           newColumn = new ColumnModel(callbackModel.name, column.type.value, column.key);
         }
-        this.actionManagerRef.current.execute(this,
-          new EditColumnAction(
-            newColumn, index
-          )
-        );
+        this.actionManagerRef.current.execute(this, new EditColumnAction(newColumn, index));
         unlisten();
       }
     });
@@ -215,7 +233,7 @@ export class DataManager {
 
     try {
       this.unlistenFunctions.push(await column.listenDataRequest());
-      await invoke("edit_column", { name: column.name, type: column.type.text });
+      await invoke("edit_column");
     } catch (e) {
       console.error(e);
     }
@@ -229,7 +247,7 @@ export class DataManager {
       const validationResult = columnValidator.validateAddColumn(callbackModel);
 
       await emitTo("addColumn", "addColumnCallbackResponse", validationResult);
-      
+
       if (isResultValid(validationResult)) {
         let column: ColumnModel;
         if (callbackModel.type === 'formula') {
@@ -241,9 +259,9 @@ export class DataManager {
         unlisten();
       }
     });
-    
+
     this.dispose();
-    
+
     this.unlistenFunctions.push(unlisten);
     try {
       this.unlistenFunctions.push(await this.listenDataRequest());
@@ -254,13 +272,15 @@ export class DataManager {
   }
 
   addRow(): void {
+    console.log(Date.now(), "addRow begin");
     this.actionManagerRef.current.execute(this, new AddRowAction());
+    console.log(Date.now(), "addRow end");
   }
 
-  newRow(columns?: ColumnModel[] | ColumnModel): RowModel {
+  newRow(columns?: ColumnModel[] | ColumnModel, index?: number): RowModel {
     const newRow: any = { key: Date.now() };
     const cols = columns instanceof ColumnModel ? [columns] : (columns ?? this.columnsState[0]);
-    cols.forEach(col => newRow[col.key] = "");
+    cols.forEach(col => newRow[col.key] = col.newRow(this, index ?? this.rowsState[0].length));
     return newRow;
   }
 
