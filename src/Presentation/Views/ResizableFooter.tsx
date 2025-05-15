@@ -3,12 +3,14 @@ import { ReactNode, useEffect, useState } from "react";
 interface ResizableFooterArgs {
   children?: ReactNode;
   heightState: [number, (height: number) => void];
+  sidebarWidth: number,
+  sidebarOpen: boolean,
 }
 
-const MIN_HEIGHT = 24;
+const MIN_HEIGHT = 25;
 const DEFAULT_HEIGHT = 200;
 
-export default function ResizableFooter({ children, heightState }: ResizableFooterArgs) {
+export default function ResizableFooter({ children, heightState, sidebarOpen, sidebarWidth }: ResizableFooterArgs) {
   const [height, setHeight] = heightState;
   const [isResizing, setIsResizing] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -46,11 +48,13 @@ export default function ResizableFooter({ children, heightState }: ResizableFoot
   return (
     <>
       <div
-        className={"fixed left-2 right-2 text-black flex flex-col "}
+        className={"text-black flex flex-col "}
         style={{ height: `${height}px` }}
       >
         {/* Drag handle + collapse toggle */}
-        <div className={"h-6 cursor-pointer flex items-center justify-between px-2 " + (collapsed ? "bg-zinc-500" : "bg-zinc-400")} >
+        <div
+          className={"cursor-pointer flex items-center justify-between pl-2 border-t border-zinc-100 " + (collapsed ? "bg-zinc-500" : "bg-zinc-400 border-b ")}
+          style={{ paddingRight: sidebarOpen ? sidebarWidth : 0 }}>
           <div
             className={(collapsed ? "cursor-not-allowed" : "cursor-ns-resize") + " select-none"}
             onMouseDown={() => !collapsed && setIsResizing(true)}
@@ -59,7 +63,7 @@ export default function ResizableFooter({ children, heightState }: ResizableFoot
           </div>
           <button
             onClick={toggleCollapsed}
-            className="text-xs text-white px-2 py-1 bg-zinc-600 hover:bg-zinc-500 rounded select-none"
+            className="text-xs text-white px-2 py-1 bg-zinc-600 hover:bg-zinc-500 rounded-l-lg select-none border-l border-zinc-100"
           >
             {collapsed ? "↑" : "↓"}
           </button>

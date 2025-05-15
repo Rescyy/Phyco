@@ -8,12 +8,16 @@ import { MultipleEventHandler } from "../../Core/Singletons/MultipleEventHandler
 import { useSearchParams } from "react-router-dom";
 import { debounce } from "../../Core/Common";
 import { ActionManager } from "../../Application/Manager/ActionManager";
+import RightSidebar, { SidebarType } from "./RightSidebar"; // assume this exists
 
 export default function TableView() {
   const [columns, setColumns] = useState<ColumnModel[]>([]);
   const [rows, setRows] = useState<RowModel[]>([]);
   const [footerHeight, setFooterHeight] = useState(200);
-  const [gridHeight, setGridHeight] = useState(window.innerHeight - footerHeight - 16);
+  const [sidebarWidth, setSidebarWidth] = useState(window.innerWidth / 4);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarType, setSidebarType] = useState<SidebarType>(null);
+  const [gridHeight, setGridHeight] = useState(window.innerHeight - footerHeight - 18);
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
   const [time, setTime] = useState(Date.now());
@@ -23,18 +27,13 @@ export default function TableView() {
   const [searchParams] = useSearchParams();
   const filenameRef = useRef<string | null>(searchParams.get("filename"));
   const actionManagerRef = useRef(new ActionManager());
-  const dataManagerRef = useRef<DataManager | null>(null);
-
-  // Initialize dataManager once
-  if (!dataManagerRef.current) {
-    dataManagerRef.current = new DataManager({
-      columnsState: [columns, setColumns],
-      rowsState: [rows, setRows],
-      refreshTable: () => setTime(Date.now()),
-      filenameRef,
-      actionManagerRef,
-    });
-  }
+  const dataManagerRef = useRef<DataManager>(new DataManager({
+    columnsState: [columns, setColumns],
+    rowsState: [rows, setRows],
+    refreshTable: () => setTime(Date.now()),
+    filenameRef,
+    actionManagerRef,
+  }));
 
   const dataManager = dataManagerRef.current;
   dataManager.setStateHandlers({ columnsState: [columns, setColumns], rowsState: [rows, setRows] });
@@ -50,7 +49,7 @@ export default function TableView() {
     }
 
     const handleResize = () => {
-      setGridHeight(window.innerHeight - footerHeight - 16);
+      setGridHeight(window.innerHeight - footerHeight - 18);
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -73,9 +72,9 @@ export default function TableView() {
         event.preventDefault();
         await dataManager?.saveProject();
       } else if (event.key === "z" && event.ctrlKey) {
-        actionManagerRef.current.undo(dataManager!);
+        actionManagerRef.current.undo(dataManager);
       } else if (event.key === "Z" && event.ctrlKey && event.shiftKey) {
-        actionManagerRef.current.redo(dataManager!);
+        actionManagerRef.current.redo(dataManager);
       }
     },
     [selectedRow, selectedColumn]
@@ -102,23 +101,23 @@ export default function TableView() {
   const renderDataGrid = () => {
     if (columns.length === 0) {
       return (
-        <div className="flex flex-col justify-center items-center" style={{ height: gridHeight, userSelect: "none" }}>
+        <div className="flex flex-col justify-center items-center flex-1" style={{ height: gridHeight, userSelect: "none" }}>
           {!loading && <h1 className="text-3xl font-bold">Add a new column</h1>}
         </div>
       );
     }
 
     return (
-      <div style={{ height: gridHeight }}>
+      <div className="flex-1 " style={{ height: gridHeight }}>
         <DataGrid
           ref={tableRef}
           key={gridHeight + columns.length + time}
-          columns={dataManager!.getColumns()}
-          rows={dataManager!.getRows()}
+          columns={dataManager.getColumns()}
+          rows={dataManager.getRows()}
           rowKeyGetter={(row) => row.key}
           style={{ height: gridHeight }}
           className="w-full h-full fill-grid"
-          onRowsChange={(rows) => dataManager!.editRows(rows)}
+          onRowsChange={(rows) => dataManager.editRows(rows)}
           onSelectedCellChange={handleCellSelect}
           onCellClick={handleCellSelect}
         />
@@ -130,21 +129,21 @@ export default function TableView() {
     <div className="flex flex-row h-full">
       <div className="flex-1">
         <div className="p-2 m-1 flex gap-1 flex-wrap">
-          <FunctionalButton onClick={() => dataManager!.addColumn()} text="Add Column" />
-          <FunctionalButton onClick={() => dataManager!.addRow()} text="Add Row" show={columns.length !== 0} />
+          <FunctionalButton onClick={() => dataManager.addColumn()} text="Add Column" />
+          <FunctionalButton onClick={() => dataManager.addRow()} text="Add Row" show={columns.length !== 0} />
         </div>
       </div>
-      <div className="w-2 bg-zinc-400 flex-none" />
+      <div className="w-2 bg-zinc-400 flex-none border-l border-r border-zinc-100" />
       <div className="flex-1">
         <div className="p-2 m-1 flex gap-1 flex-wrap">
           <FunctionalButton
-            onClick={() => dataManager!.editColumn(selectedColumn)}
+            onClick={() => dataManager.editColumn(selectedColumn)}
             text="Edit Column"
             show={selectedColumn !== null && selectedRow === -1 && selectedColumn !== 0}
           />
           <FunctionalButton
             onClick={() => {
-              dataManager!.deleteColumn(selectedColumn);
+              dataManager.deleteColumn(selectedColumn);
               unselect();
             }}
             text="Delete Column"
@@ -152,7 +151,7 @@ export default function TableView() {
           />
           <FunctionalButton
             onClick={() => {
-              dataManager!.deleteRow(selectedRow);
+              dataManager.deleteRow(selectedRow);
               unselect();
             }}
             text="Delete Row"
@@ -165,18 +164,31 @@ export default function TableView() {
 
   return (
     <>
-      {renderDataGrid()}
-      <ResizableFooter
-        heightState={[
-          footerHeight,
-          (h) => {
-            setFooterHeight(h);
-            setGridHeight(window.innerHeight - h - 16);
-          },
-        ]}
-      >
-        {renderFooterButtons()}
-      </ResizableFooter>
+      <div className="py-2 bg-zinc-400">
+        <div className="flex flex-row w-full bg-zinc-200 border-t border-b border-l border-zinc-100">
+          <div className="" style={{ width: window.innerWidth - 18 }}>
+            {renderDataGrid()}
+            <ResizableFooter
+              heightState={[footerHeight, (h) => {
+                setFooterHeight(h);
+                setGridHeight(window.innerHeight - h - 18);
+              }]}
+              sidebarOpen={sidebarOpen}
+              sidebarWidth={sidebarWidth}
+              >
+              {renderFooterButtons()}
+            </ResizableFooter>
+          </div>
+          <RightSidebar
+            height={window.innerHeight - 16}
+            open={sidebarOpen}
+            type={sidebarType}
+            width={sidebarWidth}
+            setOpen={setSidebarOpen}
+            setType={setSidebarType}
+            setWidth={setSidebarWidth} />
+        </div>
+      </div>
     </>
   );
 }

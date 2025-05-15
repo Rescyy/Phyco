@@ -19,8 +19,8 @@ export default function Layout() {
     }, []);
 
     return <>
-        <div className="p-2 bg-zinc-400" style={{ height: height, width: width }}>
-            <div className="bg-zinc-200 h-full">
+        <div className="pl-2 bg-zinc-400" style={{ height: height, width: width }}>
+            <div className="h-full">
                 <Outlet />
             </div>
         </div>
