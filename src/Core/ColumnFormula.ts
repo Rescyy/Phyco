@@ -30,13 +30,23 @@ export function getStatisticTypeFunction(value: StatisticType): UnidimensionalSt
 }
 
 export class StatisticValues {
-    sum?: number;
-    mean?: number;
-    median?: number;
-    stddev?: number;
-    min?: number;
-    max?: number;
-};
+    internal: Map<string, number> = new Map<string, number>();
+    set(key: string, value: number): void {
+        this.internal.set(key, value);
+    }
+
+    get(key: string): number | undefined {
+        return this.internal.get(key);
+    }
+
+    has(key: string): boolean {
+        return this.internal.has(key);
+    }
+
+    hasAnyValues(): boolean {
+        return this.internal.size !== 0;
+    }
+}
 
 export type ColumnStatisticValues = {
     [key: string]: StatisticValues
@@ -97,6 +107,7 @@ export class ColumnFormula {
     formula: Formula;
 
     constructor(public columns: ColumnModel[], public rawExpression: string) {
+        debugger;
         const evaluatedExpression = rawExpression.replace(/\[[^\[\]]*\]/g, (substring) => {
             if (substring === "[index]" || substring === "[i]") return "[index]";
             const variableMatch = /^\[([^\[\]\.]+)(\.([^\[\]\.]+))?\]$/g.exec(substring);

@@ -1,6 +1,7 @@
-import { ColumnDependency } from "../../Core/ColumnDependenciesGraph";
-import { ColumnFormula, FormulaInput, getStatisticTypeFunction, StatisticTypeSet, StatisticValues } from "../../Core/ColumnFormula";
+import { Dependency } from "../../Core/ColumnDependenciesGraph";
+import { ColumnFormula, FormulaInput, getStatisticTypeFunction, StatisticTypeSet } from "../../Core/ColumnFormula";
 import { DataManager } from "../Manager/DataManager";
+import { BaseModel } from "./BaseModel";
 import { ColumnData, ColumnModel } from "./ColumnModel";
 
 export interface FormulaColumnData extends ColumnData {
@@ -10,19 +11,20 @@ export interface FormulaColumnData extends ColumnData {
 export class FormulaColumnModel extends ColumnModel {
     editable = false;
 
-    constructor(name: string, public formula: ColumnFormula, key?: string) {
-        super(name, "formula", key);
+    constructor(dataManager: DataManager, name: string, public formula: ColumnFormula, key?: string) {
+        super(dataManager, name, "formula", key);
     }
 
     /* call and append to the graph before initializing */
-    override getDependencies(columns: ColumnModel[]): ColumnDependency[] {
-        const dependencies: ColumnDependency[] = [];
+    override getDependencies(): Dependency[] {
+        const [columns] = this.dataManager.columnsState;
+        const dependencies: Dependency[] = [];
         this.formula.dependencies.forEach((value, name) => {
             const column = columns.find(x => x.name === name);
             if (column) {
                 dependencies.push({
-                    dependent: this.key,
-                    dependee: column.key,
+                    dependent: this,
+                    dependee: column,
                     attribute: value
                 });
             }
@@ -36,25 +38,24 @@ export class FormulaColumnModel extends ColumnModel {
         return columnDataResponse;
     }
 
-    override initialize(dataManager: DataManager) {
-        const [, setRows] = dataManager.rowsState;
+    override initialize() {
+        const [, setRows] = this.dataManager.rowsState;
         setRows(rows => {
-            console.log(Date.now(), "initialize setRows start");
             const columnMap = new Map<string, ColumnModel>();
-            dataManager.dependencyGraph.queryDependencies(this.key).map(dependency => {
-                const column = dataManager.getColumn(dependency.dependee);
+            debugger;
+            this.dataManager.dependencyGraph.queryDependencies(this.key).map(dependency => {
+                const column = dependency.dependee as ColumnModel;
                 if (!column) throw new Error("Missing column model while getting it from dependencies");
                 const statisticTypes: StatisticTypeSet | undefined = dependency.attribute;
                 if (!statisticTypes) throw new Error("Missing formula column dependency attribute");
-                const statisticValues = column.attribute.statisticValues ?? new StatisticValues();
+                const statisticValues = this.getStatisticValues(column);
                 statisticTypes.forEach(type => {
-                    if (!statisticValues[type]) {
+                    if (!statisticValues.get(type)) {
                         const statisticFunction = getStatisticTypeFunction(type);
-                        const columnRows = rows.map(x => Number(x[column.key]));
-                        statisticValues[type] = statisticFunction(columnRows);
+                        const columnRows = rows.filter(x => x[column.key]).map(x => Number(x[column.key]));
+                        statisticValues.set(type, statisticFunction(columnRows));
                     }
                 });
-                column.attribute.statisticValues = statisticValues;
                 columnMap.set(column.key, column);
             });
             const formulaInputs = rows.map((row, i) => {
@@ -62,12 +63,11 @@ export class FormulaColumnModel extends ColumnModel {
                 columnMap.forEach((column, key) =>
                     formulaInput.data[key] = {
                         val: parseFloat(row[key]),
-                        ...column.attribute.statisticValues
+                        ...Object.fromEntries(column.attributes.statisticValues)
                     });
                 return formulaInput;
             });
             const newRows = this.formula.evaluateRange(formulaInputs).map(x => x.toString());
-            console.log(Date.now(), "initialize setRows end");
             return rows.map((row, i) => {
                 row[this.key] = newRows[i];
                 return row;
@@ -75,42 +75,43 @@ export class FormulaColumnModel extends ColumnModel {
         });
     }
 
-    override update(dataManager: DataManager, oldColumn: FormulaColumnModel): boolean {
+    override update(_oldColumn: BaseModel): boolean {
+        const oldColumn = _oldColumn as unknown as FormulaColumnModel;
         if (this.formula.rawExpression !== oldColumn.formula.rawExpression) {
-            this.attribute.statisticValues = new StatisticValues();
-            this.initialize(dataManager);
+            this.clearStatisticValues();
+            this.initialize();
             return true;
         }
         this.formula = oldColumn.formula;
         return false;
     }
 
-    override onDependencyNameEdit(_dataManager: DataManager, oldName: string, newName: string) {
+    override onDependencyNameEdit(oldName: string, newName: string) {
         this.formula.dependencies.replace(oldName, newName);
         this.formula.rawExpression = this.formula.rawExpression.replace(oldName, newName);
     }
 
-    override onDependencyUpdate(dataManager: DataManager, _changedDependencies: string[]): boolean {
-        this.attribute.statisticValues = new StatisticValues();
-        this.initialize(dataManager);
+    override onDependencyUpdate(): boolean {
+        this.clearStatisticValues();
+        this.initialize();
         return true;
     }
 
-    override updateCell(_dataManager: DataManager, _rowIdx: number, _columnKey: string, _newValue: string): boolean {
+    override updateCell(_rowIdx: number, _columnKey: string, _newValue: string): boolean {
         throw new Error("Unreachable code. Formula Column is readonly.");
     }
 
-    override newRow(_dataManager: DataManager, index: number): string {
+    override newRow(index: number): string {
         return this.formula.evaluate(new FormulaInput(index)).toString();
     }
 
-    override onRowDeleted(dataManager: DataManager, _index: number) {
-        this.attribute.statisticValues = new StatisticValues();
-        this.initialize(dataManager);
+    override onRowDeleted(_index: number) {
+        this.attributes.statisticValues.clear();
+        this.initialize();
     }
 
-    override onRowAdded(dataManager: DataManager, _index: number) {
-        this.attribute.statisticValues = new StatisticValues();
-        this.initialize(dataManager);
+    override onRowAdded(_index: number) {
+        this.attributes.statisticValues.clear();
+        this.initialize();
     }
 }

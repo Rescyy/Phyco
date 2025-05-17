@@ -12,7 +12,7 @@ import { ColumnValidator } from "../Validation/ColumnValidator";
 import { DataRequest, isResultValid } from "../../Core/Common";
 import { FormulaColumnModel } from "../Models/FormulaColumnModel";
 import { ColumnFormula } from "../../Core/ColumnFormula";
-import { ColumnDependencyGraph } from "../../Core/ColumnDependenciesGraph";
+import { DependencyGraph } from "../../Core/ColumnDependenciesGraph";
 import { listenDeleteColumnCallback, listenDeleteColumnDetailsRequest } from "../../Presentation/Views/Dialogs/DeleteColumn";
 
 export type RowModel = {
@@ -34,7 +34,7 @@ export type DataManagerProps = {
   rowsState: State<RowModel[]>,
   refreshTable: () => void,
   filenameRef: React.RefObject<string | null>,
-  actionManagerRef: React.RefObject<ActionManager>,
+  actionManager: ActionManager,
 }
 
 function serialiseCellValue(value: unknown): string | unknown {
@@ -49,9 +49,9 @@ export class DataManager {
   columnsState: State<ColumnModel[]>;
   rowsState: State<RowModel[]>;
   refreshTable: () => void;
-  dependencyGraph = new ColumnDependencyGraph();
+  dependencyGraph = new DependencyGraph();
   private filenameRef: React.RefObject<string | null>;
-  private actionManagerRef: React.RefObject<ActionManager>;
+  private actionManager: ActionManager;
   private unlistenFunctions: UnlistenFn[] = [];
 
   constructor({
@@ -59,13 +59,13 @@ export class DataManager {
     rowsState,
     refreshTable,
     filenameRef,
-    actionManagerRef }: DataManagerProps
+    actionManager }: DataManagerProps
   ) {
     this.columnsState = columnsState;
     this.rowsState = rowsState;
     this.refreshTable = refreshTable;
     this.filenameRef = filenameRef;
-    this.actionManagerRef = actionManagerRef;
+    this.actionManager = actionManager;
   }
 
   setStateHandlers({
@@ -75,7 +75,7 @@ export class DataManager {
     columnsState: [ColumnModel[], React.Dispatch<React.SetStateAction<ColumnModel[]>>];
     rowsState: [RowModel[], React.Dispatch<React.SetStateAction<RowModel[]>>];
   }) {
-    this.dispose();
+    this.disposeListeners();
     this.columnsState = columnsState;
     this.rowsState = rowsState;
   }
@@ -112,7 +112,7 @@ export class DataManager {
 
     try {
       const { columns, rows } = await invoke<OpenProjectProps>("read_project", { filename });
-      const processedColumns = columns.map(col => new ColumnModel(col));
+      const processedColumns = columns.map(col => new ColumnModel(this, col));
       const nameToKey: Record<string, string> = {};
       processedColumns.forEach(col => nameToKey[col.name] = col.key);
 
@@ -162,7 +162,7 @@ export class DataManager {
             newValue = type.preprocess(newValue);
           }
 
-          this.actionManagerRef.current.execute(this, new EditCellAction(key, j, newValue));
+          this.actionManager.execute(new EditCellAction(this, key, j, newValue));
           return;
         }
       }
@@ -182,11 +182,11 @@ export class DataManager {
   async deleteColumn(index: number | null) {
     if (index === null) return;
     index--;
-    this.dispose();
+    this.disposeListeners();
     this.unlistenFunctions.push(await listenDeleteColumnDetailsRequest(this, index));
     this.unlistenFunctions.push(await listenDeleteColumnCallback((model) => {
       if (model.confirm) {
-        this.actionManagerRef.current.execute(this, new DeleteColumnAction(index));
+        this.actionManager.execute(new DeleteColumnAction(this, index));
       }
     }));
     try {
@@ -198,7 +198,7 @@ export class DataManager {
 
   deleteRow(index: number | null): void {
     if (index === null) return;
-    this.actionManagerRef.current.execute(this, new DeleteRowAction(index));
+    this.actionManager.execute(new DeleteRowAction(this, index));
   }
 
   async editColumn(index: number | null): Promise<void> {
@@ -220,11 +220,11 @@ export class DataManager {
         if (column.type.value === 'formula') {
           const formulaColumn = column as FormulaColumnModel;
           const formula = formulaColumn.formula.rawExpression === callbackModel.formula ? formulaColumn.formula : new ColumnFormula(columns, callbackModel.formula!);
-          newColumn = new FormulaColumnModel(callbackModel.name, formula, column.key);
+          newColumn = new FormulaColumnModel(this, callbackModel.name, formula, column.key);
         } else {
-          newColumn = new ColumnModel(callbackModel.name, column.type.value, column.key);
+          newColumn = new ColumnModel(this, callbackModel.name, column.type.value, column.key);
         }
-        this.actionManagerRef.current.execute(this, new EditColumnAction(newColumn, index));
+        this.actionManager.execute(new EditColumnAction(this, newColumn, index));
         unlisten();
       }
     });
@@ -251,16 +251,16 @@ export class DataManager {
       if (isResultValid(validationResult)) {
         let column: ColumnModel;
         if (callbackModel.type === 'formula') {
-          column = new FormulaColumnModel(callbackModel.name, new ColumnFormula(columns, callbackModel.formula!));
+          column = new FormulaColumnModel(this, callbackModel.name, new ColumnFormula(columns, callbackModel.formula!));
         } else {
-          column = new ColumnModel(event.payload);
+          column = new ColumnModel(this, event.payload);
         }
-        this.actionManagerRef.current.execute(this, new AddColumnAction(column));
+        this.actionManager.execute(new AddColumnAction(this, column));
         unlisten();
       }
     });
 
-    this.dispose();
+    this.disposeListeners();
 
     this.unlistenFunctions.push(unlisten);
     try {
@@ -273,14 +273,14 @@ export class DataManager {
 
   addRow(): void {
     console.log(Date.now(), "addRow begin");
-    this.actionManagerRef.current.execute(this, new AddRowAction());
+    this.actionManager.execute(new AddRowAction(this));
     console.log(Date.now(), "addRow end");
   }
 
   newRow(columns?: ColumnModel[] | ColumnModel, index?: number): RowModel {
     const newRow: any = { key: Date.now() };
     const cols = columns instanceof ColumnModel ? [columns] : (columns ?? this.columnsState[0]);
-    cols.forEach(col => newRow[col.key] = col.newRow(this, index ?? this.rowsState[0].length));
+    cols.forEach(col => newRow[col.key] = col.newRow(index ?? this.rowsState[0].length));
     return newRow;
   }
 
@@ -307,7 +307,7 @@ export class DataManager {
     return displayRows;
   }
 
-  dispose() {
+  disposeListeners() {
     this.unlistenFunctions.forEach(unlisten => unlisten());
     this.unlistenFunctions = [];
   }

@@ -22,9 +22,8 @@ export async function listenDeleteColumnDetailsRequest(dataManager: DataManager,
         debugger;
         const column = dataManager.columnsState[0][idx];
         const dependentColumns: string[] = [];
-        dataManager.dependencyGraph.propagateDependents(column.key, (key) => {
-            const name = dataManager.getColumn(key)?.name;
-            if (name) dependentColumns.push(name);
+        dataManager.dependencyGraph.propagateDependents(column, (dependentColumn) => {
+            dependentColumns.push(dependentColumn.name);
             return true;
         });
         const details: DeleteColumnDetails = {
@@ -38,9 +37,9 @@ export async function listenDeleteColumnDetailsRequest(dataManager: DataManager,
 function fetchDetails(callback: (details: DeleteColumnDetails) => void) {
     once(deleteColumnDetailsResponseEvent, async (event: Event<DeleteColumnDetails>) =>
         callback(event.payload)
-    ).then(async () => {
+    ).then(async () =>
         await emitTo("main", deleteColumnDetailsRequestEvent, { callerLabel: "deleteColumn" })
-    });
+    );
 }
 
 export async function listenDeleteColumnCallback(callback: (model: DeleteColumnCallbackModel) => void): Promise<UnlistenFn> {
@@ -80,8 +79,8 @@ export default function DeleteColumn() {
         if (details?.dependentColumns && details.dependentColumns.length !== 0) {
             return <>
                 <br />
-                The following columns depend on this column and will be deleted: 
-                <br/> 
+                The following columns depend on this column and will be deleted:
+                <br />
                 {details.dependentColumns.map(x => `'${x}'`).join(", ")}
             </>
         }

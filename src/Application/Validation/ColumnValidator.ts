@@ -1,5 +1,5 @@
 import { ColumnFormula } from "../../Core/ColumnFormula";
-import { isResultValid, ValidationResult } from "../../Core/Common";
+import { isResultValid, isStringAlphanumeric, ValidationResult } from "../../Core/Common";
 import { allDatatypes } from "../../Core/Datatype";
 import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
 import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
@@ -28,10 +28,12 @@ export class ColumnValidator {
         const testName = value.name.trim();
         const testFormula = value.formula?.trim();
 
-        if (!value) {
+        if (!value.name) {
             validationResult.name.setMessage("Name is required");
         } else if (!this.isColumnNameUnique(testName, idx)) {
             validationResult.name.setMessage("Column name is not unique");
+        } else if (!isStringAlphanumeric(testName)) {
+            validationResult.name.setMessage("Column name can't contain special characters")
         }
 
         if (editingColumn.type.value === 'formula') {
@@ -54,7 +56,7 @@ export class ColumnValidator {
             validationResult.name.setMessage("Name is required");
         } else if (!this.isColumnNameUnique(testName)) {
             validationResult.name.setMessage("Column name is not unique");
-        } else if (!this.nameAlphabetical(testName)) {
+        } else if (!isStringAlphanumeric(testName)) {
             validationResult.name.setMessage("Column name can't contain special characters")
         }
 
@@ -75,9 +77,7 @@ export class ColumnValidator {
         return validationResult;
     }
 
-    nameAlphabetical(name: string): boolean {
-        return Boolean(/^[a-zA-Z]+$/g.exec(name));
-    }
+    
 
     isColumnNameUnique(columnName: string, idx?: number): boolean {
         const [columns] = this.dataManager.columnsState;
@@ -93,7 +93,7 @@ export class ColumnValidator {
             if (formula.dependencies.has(columnName)) {
                 return new ValidationResult("Cannot use column's name inside its formula");
             }
-            const newColumn = new FormulaColumnModel(columnName, formula, column.key);
+            const newColumn = new FormulaColumnModel(this.dataManager, columnName, formula, column.key);
             if (this.dataManager.dependencyGraph.checkCircularDependencyWithModel(this.dataManager, newColumn)) {
                 return new ValidationResult("Cannot have circular dependency between columns");
             }
@@ -107,7 +107,7 @@ export class ColumnValidator {
         const [columns] = this.dataManager.columnsState;
         if (!rawExpression) return new ValidationResult("Formula is required");
         try {
-            const formula = new ColumnFormula([...columns, new ColumnModel(columnName, "text")], rawExpression);
+            const formula = new ColumnFormula([...columns, new ColumnModel(this.dataManager, columnName, "text")], rawExpression);
             if (formula.dependencies.has(columnName)) {
                 return new ValidationResult("Cannot use column's name inside its formula");
             }

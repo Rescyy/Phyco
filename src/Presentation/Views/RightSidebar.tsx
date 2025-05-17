@@ -14,7 +14,7 @@ interface RightSidebarProps {
     children?: ReactNode;
 }
 
-const SIDEBAR_MIN_WIDTH = 100;
+const SIDEBAR_MIN_WIDTH = 150;
 
 export default function RightSidebar({
     open,
@@ -33,6 +33,7 @@ export default function RightSidebar({
         const handleMouseMove = (e: MouseEvent) => {
             const newWidth = window.innerWidth - e.clientX - 28;
             if (newWidth >= SIDEBAR_MIN_WIDTH && newWidth <= window.innerWidth - 100) {
+                console.log(newWidth);
                 setWidth(newWidth);
             }
         };
@@ -59,7 +60,7 @@ export default function RightSidebar({
         <>
             {/* Icon bar */}
             <div className="flex flex-col items-center gap-2 bg-zinc-400 border-zinc-100 border-l">
-                <button onClick={() => toggleType("charts")} title="Charts" className="p-2 border-b border-zinc-100">
+                <button onClick={() => toggleType("charts")} title="Charts" className="p-2 border-b border-zinc-100 hover:bg-zinc-300">
                     <FaChartBar size={16} color={"#2d2d2d"}/>
                 </button>
             </div>
@@ -74,7 +75,7 @@ export default function RightSidebar({
                         className="w-2 h-full bg-zinc-400 cursor-ew-resize z-30 border-l border-zinc-100"
                         onMouseDown={() => setResizing(true)}
                     />
-                    <div className="flex-grow overflow-auto p-4 border border-zinc-100">
+                    <div className="flex-grow overflow-auto border border-zinc-100">
                         {children}
                     </div>
                 </div>

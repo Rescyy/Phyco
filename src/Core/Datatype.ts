@@ -46,5 +46,5 @@ export const primitiveDatatypes = [NumericalDatatype, TextDatatype];
 export const allDatatypes = [...primitiveDatatypes, FormulaDatatype]
 
 export function getDatatype(type: string) {
-    return allDatatypes.find(datatype => datatype.value === type) as Datatype;
+    return allDatatypes.find(datatype => datatype.value === type);
 }

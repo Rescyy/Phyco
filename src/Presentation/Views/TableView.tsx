@@ -9,10 +9,14 @@ import { useSearchParams } from "react-router-dom";
 import { debounce } from "../../Core/Common";
 import { ActionManager } from "../../Application/Manager/ActionManager";
 import RightSidebar, { SidebarType } from "./RightSidebar"; // assume this exists
+import { FaPlus, FaTrash } from "react-icons/fa";
+import ChartManager from "../../Application/Manager/ChartManager";
+import ChartModel from "../../Application/Models/ChartModel";
 
 export default function TableView() {
   const [columns, setColumns] = useState<ColumnModel[]>([]);
   const [rows, setRows] = useState<RowModel[]>([]);
+  const [charts, setCharts] = useState<ChartModel[]>([]);
   const [footerHeight, setFooterHeight] = useState(200);
   const [sidebarWidth, setSidebarWidth] = useState(window.innerWidth / 4);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -27,16 +31,21 @@ export default function TableView() {
   const [searchParams] = useSearchParams();
   const filenameRef = useRef<string | null>(searchParams.get("filename"));
   const actionManagerRef = useRef(new ActionManager());
-  const dataManagerRef = useRef<DataManager>(new DataManager({
+  const dataManagerRef = useRef(new DataManager({
     columnsState: [columns, setColumns],
     rowsState: [rows, setRows],
     refreshTable: () => setTime(Date.now()),
     filenameRef,
-    actionManagerRef,
+    actionManager: actionManagerRef.current,
   }));
-
+  
+  const actionManager = actionManagerRef.current;
   const dataManager = dataManagerRef.current;
   dataManager.setStateHandlers({ columnsState: [columns, setColumns], rowsState: [rows, setRows] });
+  const chartManagerRef = useRef(new ChartManager(dataManager, actionManager, [charts, setCharts]));
+
+  const chartManager = chartManagerRef.current;
+  chartManager.setStateHandlers([charts, setCharts]);
 
   useEffect(() => {
     const filename = filenameRef.current;
@@ -72,9 +81,9 @@ export default function TableView() {
         event.preventDefault();
         await dataManager?.saveProject();
       } else if (event.key === "z" && event.ctrlKey) {
-        actionManagerRef.current.undo(dataManager);
+        actionManagerRef.current.undo();
       } else if (event.key === "Z" && event.ctrlKey && event.shiftKey) {
-        actionManagerRef.current.redo(dataManager);
+        actionManagerRef.current.redo();
       }
     },
     [selectedRow, selectedColumn]
@@ -162,9 +171,43 @@ export default function TableView() {
     </div>
   );
 
+  const renderChartSidePanel = () => (
+    <div className="flex flex-col h-full">
+      <div className="flex flex-row items-center bg-zinc-300 border-b border-zinc-100">
+        <div className="font-bold flex-1 py-1 pl-1 select-none">
+          Charts Panel
+        </div>
+        <div className="w-[1px] bg-zinc-100 h-full"></div>
+        <button className="py-2 px-2 hover:bg-zinc-200" onClick={() => chartManager.handleAdd()}>
+          <FaPlus className="fill-zinc-600 hover:fill-zinc-500" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col">
+          {charts.map((chart, i) => (
+            <li
+              key={chart.key}
+              className="flex items-center justify-between bg-zinc-100 hover:bg-zinc-50 py-1 px-2 shadow-sm"
+              onClick={() => chartManager.viewChart(chart.key)}
+            >
+              <span className="text-sm font-medium truncate select-none">{chart.name}</span>
+              <div className="flex gap-1">
+                <button onClick={(e) => {e.stopPropagation(); chartManager.handleDelete(i);}}>
+                  <div className="p-1 hover:bg-zinc-200 rounded-2xl">
+                    <FaTrash className="w-4 h-4 fill-zinc-600 hover:fill-zinc-700" />
+                  </div>
+                </button>
+              </div>
+            </li>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <div className="py-2 bg-zinc-400">
+      <div className="pl-2 py-2 bg-zinc-400">
         <div className="flex flex-row w-full bg-zinc-200 border-t border-b border-l border-zinc-100">
           <div className="" style={{ width: window.innerWidth - 18 }}>
             {renderDataGrid()}
@@ -175,7 +218,7 @@ export default function TableView() {
               }]}
               sidebarOpen={sidebarOpen}
               sidebarWidth={sidebarWidth}
-              >
+            >
               {renderFooterButtons()}
             </ResizableFooter>
           </div>
@@ -186,7 +229,9 @@ export default function TableView() {
             width={sidebarWidth}
             setOpen={setSidebarOpen}
             setType={setSidebarType}
-            setWidth={setSidebarWidth} />
+            setWidth={setSidebarWidth} >
+            {renderChartSidePanel()}
+          </RightSidebar>
         </div>
       </div>
     </>

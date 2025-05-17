@@ -3,8 +3,8 @@ import { ReactNode, useEffect, useState } from "react";
 interface ResizableFooterArgs {
   children?: ReactNode;
   heightState: [number, (height: number) => void];
-  sidebarWidth: number,
-  sidebarOpen: boolean,
+  sidebarWidth?: number,
+  sidebarOpen?: boolean,
 }
 
 const MIN_HEIGHT = 25;
@@ -49,7 +49,7 @@ export default function ResizableFooter({ children, heightState, sidebarOpen, si
     <>
       <div
         className={"text-black flex flex-col "}
-        style={{ height: `${height}px` }}
+        style={{ height }}
       >
         {/* Drag handle + collapse toggle */}
         <div

@@ -17,24 +17,36 @@ impl<R: Runtime> SetupControllers<R> for Builder<R> {
             edit_column,
             delete_column,
             save_project,
-            read_project
+            read_project,
+            add_chart,
+            view_chart
         ])
     }
 }
 
 #[command]
 pub fn add_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
-    table_controller::add_column(app)
+    table_controller::open_add_column_window(app)
 }
 
 #[command]
 pub fn edit_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
-    table_controller::edit_column(app)
+    table_controller::open_edit_column_window(app)
 }
 
 #[command]
 pub fn delete_column<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
-    table_controller::delete_column(app)
+    table_controller::open_delete_column_window(app)
+}
+
+#[command]
+pub fn add_chart<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
+    table_controller::open_add_chart_window(app)
+}
+
+#[command]
+pub fn view_chart<R: Runtime>(app: AppHandle<R>, key: String, name: String) -> tauri::Result<()> {
+    table_controller::open_view_chart_window(app, key, name)
 }
 
 #[command]

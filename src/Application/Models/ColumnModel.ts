@@ -1,8 +1,9 @@
 import { once, UnlistenFn, Event, emitTo } from "@tauri-apps/api/event";
 import Datatype, { getDatatype } from "../../Core/Datatype";
 import { DataRequest } from "../../Core/Common";
-import { ColumnDependency } from "../../Core/ColumnDependenciesGraph";
+import { Dependency } from "../../Core/ColumnDependenciesGraph";
 import { DataManager, RowModel } from "../Manager/DataManager";
+import { BaseModel } from "./BaseModel";
 
 export interface ColumnData {
   name: string,
@@ -13,32 +14,34 @@ export interface ColumnData {
 };
 
 export type ColumnModelInitializeProps = {
-  columns: ColumnModel[], rows: RowModel[], dependencies: ColumnDependency[],
+  columns: ColumnModel[], rows: RowModel[], dependencies: Dependency[],
 }
 
-export class ColumnModel {
-  name: string;
-  key: string;
+export class ColumnModel extends BaseModel {
   type: Datatype;
   resizable = false;
   minWidth = 50;
   width = 100;
   editable = true;
   draggable = true;
-  attribute: any = {};
 
-  constructor(nameOrPayload: string | { name: string, type: string }, type?: string, key?: string) {
+  constructor(protected dataManager: DataManager, nameOrPayload: string | { name: string, type: string }, type?: string, key?: string) {
+    super(typeof nameOrPayload === 'object' ? nameOrPayload.name : nameOrPayload, key);
+    this.attributes.statisticValues = new Map<string, number>();
     if (typeof nameOrPayload === "object" && nameOrPayload !== null) {
-      // Construct from payload
-      this.name = nameOrPayload.name;
-      this.key = key ?? `${nameOrPayload.name}${Date.now()}`;
-      this.type = getDatatype(nameOrPayload.type);
+      this.type = getDatatype(nameOrPayload.type)!;
     } else {
-      // Construct from name + type
-      this.name = nameOrPayload;
-      this.key = key ?? `${nameOrPayload.toString()}${Date.now()}`;
-      this.type = getDatatype(type!);
+      this.type = getDatatype(type!)!;
     }
+  }
+
+  getStatisticValues(model?: BaseModel): Map<string, number> {
+    model ??= this;
+    return model.attributes.statisticValues;
+  }
+
+  clearStatisticValues() {
+    this.getStatisticValues().clear();
   }
 
   columnData(): ColumnData {
@@ -61,21 +64,22 @@ export class ColumnModel {
     emitTo("main", "columnData", { callerLabel });
   }
 
-  getDependencies(_columns: ColumnModel[]): ColumnDependency[] {
+  override getDependencies(): Dependency[] {
     return [];
   }
 
   /* dataManager does not include the column at this point */
-  initialize(_dataManager: DataManager) {
+  override initialize() {
 
   }
 
-  update(_dataManager: DataManager, _oldColumn: ColumnModel): boolean {
+  override update(_oldColumn: BaseModel): boolean {
     return false;
   }
 
-  updateCell(dataManager: DataManager, rowIdx: number, columnKey: string, newValue: string): boolean {
-    const [, setRows] = dataManager.rowsState;
+  updateCell(rowIdx: number, columnKey: string, newValue: string): boolean {
+    const [, setRows] = this.dataManager.rowsState;
+    this.getStatisticValues().clear();
 
     setRows(rows => {
       rows[rowIdx][columnKey] = newValue;
@@ -84,24 +88,28 @@ export class ColumnModel {
     return true;
   }
 
-  onDependencyNameEdit(_dataManager: DataManager, _oldName: string, _newName: string) {
+  override onDependencyNameEdit(_oldName: string, _newName: string) {
     throw new Error("Unreachable code. ColumnModel doesn't have column dependencies");
   }
 
   /* return true if column row values were modified */
-  onDependencyUpdate(_dataManager: DataManager, _changedDependencies: string[]): boolean {
+  override onDependencyUpdate(): boolean {
     throw new Error("Unreachable code. ColumnModel doesn't have column dependencies.");
   }
 
-  newRow(_dataManager: DataManager, _index: number): string {
+  newRow(_index: number): string {
     return "";
   }
 
-  onRowDeleted(_dataManager: DataManager, _index: number) {
-
+  onRowDeleted(_index: number, row: RowModel) {
+    if (row[this.key]) {
+      this.getStatisticValues().clear();
+    }
   }
 
-  onRowAdded(_dataManager: DataManager, _index: number) {
-
+  onRowAdded(_index: number, row: RowModel) {
+    if (row[this.key]) {
+      this.getStatisticValues().clear();
+    }
   }
 }

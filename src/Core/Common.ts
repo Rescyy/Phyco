@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { v4 } from "uuid";
 
 const debounceMap: Record<string, ReturnType<typeof setTimeout>> = {};
 
@@ -48,4 +49,17 @@ export function debounce(id: string, callback: () => void, delay: number): void 
 
 export function closeCurrentWindow() {
   getCurrentWindow().close();
+}
+
+export function isStringAlphanumeric(value: string): boolean {
+  return Boolean(/^[a-zA-Z0-9_.]+$/g.exec(value));
+}
+
+export function alphabeticalUuid() {
+  const from = "1234567890-".split("");
+  const to =   "ghijklmnop_".split("");
+  return v4().split("").map(char => {
+    const index = from.indexOf(char);
+    return index !== -1 ? to[index] : char;
+  }).join("");
 }

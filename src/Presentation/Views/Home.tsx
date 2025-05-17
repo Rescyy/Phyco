@@ -20,7 +20,8 @@ export default function Home() {
     };
 
     return <>
-        <div className="flex flex-col justify-center items-center h-full">
+    <div className="p-2 bg-zinc-400 h-full">
+        <div className="flex flex-col justify-center items-center h-full bg-zinc-200">
             <h1 className="text-3xl font-bold">
                 Welcome to Phyco!!!
             </h1>
@@ -34,5 +35,6 @@ export default function Home() {
                 <button onClick={() => navigate("/test", {replace: true})}>Test</button>
             </div>
         </div>
+    </div>
     </>
 }

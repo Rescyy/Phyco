@@ -6,6 +6,8 @@ import AddColumn from './Views/Dialogs/AddColumn';
 import EditColumn from './Views/Dialogs/EditColumn';
 import Test from './Views/Test';
 import DeleteColumn from './Views/Dialogs/DeleteColumn';
+import ViewChart from './Views/Dialogs/ViewChart';
+import AddChart from './Views/Dialogs/AddChart';
 
 function App() {
   return (
@@ -17,7 +19,9 @@ function App() {
         </Route>
         <Route path="addColumn" element={<AddColumn />} />
         <Route path="editColumn" element={<EditColumn />} />
-        <Route path="deleteColumn" element={<DeleteColumn />}/>
+        <Route path="deleteColumn" element={<DeleteColumn />} />
+        <Route path="addChart" element={<AddChart />} />
+        <Route path="viewChart" element={<ViewChart />} />
         <Route path="test" element={<Test />} />
       </Routes>
     </BrowserRouter>
