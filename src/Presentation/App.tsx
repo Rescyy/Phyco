@@ -4,9 +4,8 @@ import Layout from './Views/Layout';
 import TableView from './Views/TableView';
 import AddColumn from './Views/Dialogs/AddColumn';
 import EditColumn from './Views/Dialogs/EditColumn';
-import Test from './Views/Test';
 import DeleteColumn from './Views/Dialogs/DeleteColumn';
-import ViewChart from './Views/Dialogs/ViewChart';
+import ViewChart from './Views/Chart/ViewChart';
 import AddChart from './Views/Dialogs/AddChart';
 
 function App() {
@@ -22,7 +21,6 @@ function App() {
         <Route path="deleteColumn" element={<DeleteColumn />} />
         <Route path="addChart" element={<AddChart />} />
         <Route path="viewChart" element={<ViewChart />} />
-        <Route path="test" element={<Test />} />
       </Routes>
     </BrowserRouter>
   );

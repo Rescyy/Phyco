@@ -1,5 +1,5 @@
 import { allChartTypes } from "../../Core/ChartType";
-import { isResultValid, isStringAlphanumeric, ValidationResult } from "../../Core/Common";
+import { isResultValid, isStringAlphanumeric, normalizeWhitespace, ValidationResult } from "../../Core/Common";
 import { AddChartCallbackModel } from "../../Presentation/Views/Dialogs/AddChart";
 import ChartManager from "../Manager/ChartManager";
 
@@ -13,7 +13,7 @@ export class ChartValidator {
 
     validateAddChart(value: AddChartCallbackModel): AddChartValidationResult {
         const validationResult = { name: new ValidationResult(), type: new ValidationResult() };
-        const testName = value.name.trim();
+        const testName = normalizeWhitespace(value.name);
 
         if (!value.name) {
             validationResult.name.setMessage("Name is required");

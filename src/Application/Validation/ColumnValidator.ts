@@ -1,5 +1,5 @@
 import { ColumnFormula } from "../../Core/ColumnFormula";
-import { isResultValid, isStringAlphanumeric, ValidationResult } from "../../Core/Common";
+import { isResultValid, isStringAlphanumeric, normalizeWhitespace, ValidationResult } from "../../Core/Common";
 import { allDatatypes } from "../../Core/Datatype";
 import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
 import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
@@ -25,8 +25,8 @@ export class ColumnValidator {
         const validationResult: EditColumnValidationResult = { name: new ValidationResult() };
         const [columns] = this.dataManager.columnsState;
         const editingColumn = columns[idx];
-        const testName = value.name.trim();
-        const testFormula = value.formula?.trim();
+        const testName = normalizeWhitespace(value.name);
+        const testFormula = value.formula ? normalizeWhitespace(value.formula) : undefined;
 
         if (!value.name) {
             validationResult.name.setMessage("Name is required");
@@ -49,8 +49,8 @@ export class ColumnValidator {
 
     validateAddColumn(value: AddColumnCallbackModel): AddColumnValidationResult {
         const validationResult: AddColumnValidationResult = { name: new ValidationResult(), type: new ValidationResult() };
-        const testName = value.name.trim();
-        const testFormula = value.formula?.trim();
+        const testName = normalizeWhitespace(value.name);
+        const testFormula = value.formula ? normalizeWhitespace(value.formula) : undefined;
 
         if (!value.name) {
             validationResult.name.setMessage("Name is required");

@@ -65,7 +65,7 @@ pub fn open_add_chart_window<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()>
     )
 }
 
-pub fn open_view_chart_window<R: Runtime>(app: AppHandle<R>, key: String, name: String) -> tauri::Result<()> {
+pub fn open_view_chart_window<R: Runtime>(app: AppHandle<R>, key: String, r#type: String, name: String) -> tauri::Result<()> {
     const VIEW_CHART_LABEL: &str = "viewChart";
     const VIEW_CHART_TITLE: &str = "View Chart";
     const VIEW_CHART_ROUTE: &str = "viewChart";
@@ -74,7 +74,7 @@ pub fn open_view_chart_window<R: Runtime>(app: AppHandle<R>, key: String, name: 
         WindowInfo {
             label: format!["{VIEW_CHART_LABEL}{key}"],
             title: format!["{VIEW_CHART_TITLE} {name}"],
-            route: format!["{VIEW_CHART_ROUTE}?key={key}&name={name}"],
+            route: format!["{VIEW_CHART_ROUTE}?key={key}&type={type}&name={name}"],
             height: 300.,
             width: 400.,
         },

@@ -45,8 +45,8 @@ pub fn add_chart<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
 }
 
 #[command]
-pub fn view_chart<R: Runtime>(app: AppHandle<R>, key: String, name: String) -> tauri::Result<()> {
-    table_controller::open_view_chart_window(app, key, name)
+pub fn view_chart<R: Runtime>(app: AppHandle<R>, key: String, r#type: String, name: String) -> tauri::Result<()> {
+    table_controller::open_view_chart_window(app, key, r#type, name)
 }
 
 #[command]

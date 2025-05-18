@@ -4,12 +4,11 @@ import { Column, textEditor } from "react-data-grid";
 import { invoke } from '@tauri-apps/api/core';
 import { listen, Event, UnlistenFn, emitTo, once } from "@tauri-apps/api/event";
 import { save } from '@tauri-apps/plugin-dialog';
-import { State } from "../../Presentation/Setup";
 import { ActionManager, AddColumnAction, AddRowAction, DeleteColumnAction, DeleteRowAction, EditCellAction, EditColumnAction } from "./ActionManager";
 import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
 import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
 import { ColumnValidator } from "../Validation/ColumnValidator";
-import { DataRequest, isResultValid } from "../../Core/Common";
+import { DataRequest, isResultValid, State } from "../../Core/Common";
 import { FormulaColumnModel } from "../Models/FormulaColumnModel";
 import { ColumnFormula } from "../../Core/ColumnFormula";
 import { DependencyGraph } from "../../Core/ColumnDependenciesGraph";
@@ -272,9 +271,7 @@ export class DataManager {
   }
 
   addRow(): void {
-    console.log(Date.now(), "addRow begin");
     this.actionManager.execute(new AddRowAction(this));
-    console.log(Date.now(), "addRow end");
   }
 
   newRow(columns?: ColumnModel[] | ColumnModel, index?: number): RowModel {
@@ -286,7 +283,6 @@ export class DataManager {
 
   getColumns(): Column<any, any>[] {
     const [columns] = this.columnsState;
-    console.log(columns);
     return [OrdinalColumnModel(), ...columns].map(col => ({
       name: col.name,
       key: col.key,
@@ -301,9 +297,14 @@ export class DataManager {
     }));
   }
 
-  getRows(): any[] {
+  getColumnRowNumbers(key: string): number[] {
     const [rows] = this.rowsState;
-    const displayRows = rows.map((row, idx) => ({ order: idx + 1, ...row }));
+    return rows.map(row => Number(row[key]));
+  }
+
+  getRows(): RowModel[] {
+    const [rows] = this.rowsState;
+    const displayRows = rows.map((row, idx) => ({ order: (idx + 1).toString(), ...row }));
     return displayRows;
   }
 

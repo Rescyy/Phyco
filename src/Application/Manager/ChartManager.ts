@@ -1,13 +1,12 @@
 import { UnlistenFn } from "@tauri-apps/api/event";
-import { isResultValid } from "../../Core/Common";
-import { State } from "../../Presentation/Setup";
+import { isResultValid, State } from "../../Core/Common";
 import { listenAddChartCallback } from "../../Presentation/Views/Dialogs/AddChart";
 import ChartModel from "../Models/ChartModel";
 import { ChartValidator } from "../Validation/ChartValidator";
 import { ActionManager, Action } from "./ActionManager";
 import { DataManager } from "./DataManager";
 import { invoke } from "@tauri-apps/api/core";
-import { ViewChartEvents } from "../../Presentation/Views/Dialogs/ViewChart";
+import { ViewChartEvents } from "../../Presentation/Views/Chart/ViewChart";
 
 export default class ChartManager {
     private unlistenFunctions: UnlistenFn[] = [];
@@ -51,7 +50,7 @@ export default class ChartManager {
             chart.open = true;
             await ViewChartEvents.listenChartCallbackEvents(chart, this)
                 .then(async () =>
-                    await invoke("view_chart", { key, name: chart.name })
+                    await invoke("view_chart", { key, type: chart.type.value, name: chart.name })
                 );
         }
     }

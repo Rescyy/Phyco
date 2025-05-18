@@ -1,4 +1,4 @@
-use tauri::{AppHandle, CloseRequestApi, Manager, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 pub struct WindowInfo {
     pub label: String,
