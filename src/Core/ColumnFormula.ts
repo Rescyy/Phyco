@@ -107,14 +107,12 @@ export class ColumnFormula {
     formula: Formula;
 
     constructor(public columns: ColumnModel[], public rawExpression: string) {
-        debugger;
         const evaluatedExpression = rawExpression.replace(/\[[^\[\]]*\]/g, (substring) => {
             if (substring === "[index]" || substring === "[i]") return "[index]";
             const variableMatch = /^\[([^\[\]\.]+)(\.([^\[\]\.]+))?\]$/g.exec(substring);
             if (variableMatch === null) {
                 throw this.badVariableSyntax(substring);
             }
-
             const columnName = variableMatch[1];
             const column = columns.find(x => x.name === columnName);
             if (column === undefined) {
@@ -123,9 +121,7 @@ export class ColumnFormula {
             if (column.type.value === 'text') {
                 throw this.textColumnNotAllowed(columnName, substring);
             }
-
             const columnAttributes = variableMatch.filter(x => x !== undefined);
-
             switch (columnAttributes.length) {
                 case 2:
                     this.dependencies.addDependency(column.name);

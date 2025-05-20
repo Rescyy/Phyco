@@ -39,7 +39,6 @@ export default function EditColumn() {
                 setFormulaValidation("");
             }
 
-            debugger;
             if (isResultValid(data)) {
                 setNameValidation("");
                 closeCurrentWindow();

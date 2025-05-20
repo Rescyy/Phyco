@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { closeCurrentWindow, isResultValid, ValidationResult } from "../../../Core/Common";
-import { emitTo, once, Event } from "@tauri-apps/api/event";
+import { closeCurrentWindow, handleEvent, isResultValid, ValidationResult } from "../../../Core/Common";
+import { emitTo, once } from "@tauri-apps/api/event";
 import { allDatatypes } from "../../../Core/Datatype";
 import ValidationSpan from "../ValidationSpan";
 import useResize from "../../Hooks/Resize";
@@ -27,34 +27,32 @@ export default function AddColumn() {
 
     const submitForm = async function () {
         const payload: AddColumnCallbackModel = { name, type, formula };
-        await once("addColumnCallbackResponse", (response: Event<AddColumnCallbackResponse>) => {
-            const data = response.payload;
-            if (!data.name.result) {
-                setNameValidation(data.name.message);
+        await once("addColumnCallbackResponse", handleEvent((validation: AddColumnCallbackResponse) => {
+            if (!validation.name.result) {
+                setNameValidation(validation.name.message);
             } else {
                 setNameValidation("");
             }
 
-            if (!data.type.result) {
-                setTypeValidation(data.type.message);
+            if (!validation.type.result) {
+                setTypeValidation(validation.type.message);
             } else {
                 setTypeValidation("");
             }
 
-            if (data.formula && !data.formula.result) {
-                setFormulaValidation(data.formula.message);
+            if (validation.formula && !validation.formula.result) {
+                setFormulaValidation(validation.formula.message);
             } else {
                 setFormulaValidation("");
             }
 
-            if (isResultValid(data)) {
+            if (isResultValid(validation)) {
                 closeCurrentWindow();
             }
-        });
-        emitTo("main", "addColumnCallback", payload);
+        })).then(() => emitTo("main", "addColumnCallback", payload));
     };
 
-    const {height, width} = useResize();
+    const { height, width } = useResize();
 
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -70,79 +68,79 @@ export default function AddColumn() {
         }
     }, []);
 
-    
-        return <>
-            <div
-                style={{ height: height, width: width }}
-                className="bg-gray-100 px-5 py-3 flex flex-col items-center">
-                <div className="w-75 mb-1">
-                    <label className="block text-xl select-none">
-                        Name
-                    </label>
-                    <div className="bg-white border rounded border-gray-400">
-                        <input
-                            id="name-input"
-                            type="text"
-                            className="p-1 w-full"
-                            placeholder="Column Name..."
-                            autoComplete="nope"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                    </div>
-                    <ValidationSpan message={nameValidation} />
+
+    return <>
+        <div
+            style={{ height: height, width: width }}
+            className="bg-gray-100 px-5 py-3 flex flex-col items-center">
+            <div className="w-75 mb-1">
+                <label className="block text-xl select-none">
+                    Name
+                </label>
+                <div className="bg-white border rounded border-gray-400">
+                    <input
+                        id="name-input"
+                        type="text"
+                        className="p-1 w-full"
+                        placeholder="Column Name..."
+                        autoComplete="nope"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                    />
                 </div>
-                <div className="w-75 my-1">
-                    <label className="block text-xl select-none">
-                        Datatype
-                    </label>
-                    <div className="border bg-white border-gray-400 rounded">
-                        <select
-                            className="p-1 w-full"
-                            value={type}
-                            onChange={(e) => setType(e.target.value)}>
-                            {type ? "" : <option>Choose a datatype...</option>}
-                            {allDatatypes.map(item => <option key={item.value} value={item.value}>
-                                {item.text}
-                            </option>)}
-                        </select>
-                    </div>
-                    <ValidationSpan message={typeValidation} />
+                <ValidationSpan message={nameValidation} />
+            </div>
+            <div className="w-75 my-1">
+                <label className="block text-xl select-none">
+                    Datatype
+                </label>
+                <div className="border bg-white border-gray-400 rounded">
+                    <select
+                        className="p-1 w-full"
+                        value={type}
+                        onChange={(e) => setType(e.target.value)}>
+                        {type ? "" : <option>Choose a datatype...</option>}
+                        {allDatatypes.map(item => <option key={item.value} value={item.value}>
+                            {item.text}
+                        </option>)}
+                    </select>
                 </div>
-                {
-                    type === 'formula' ?
-                        <div className="mt-1 w-75">
-                            <label className="block text-xl select-none">
-                                Formula
-                            </label>
-                            <div className="bg-white border rounded border-gray-400 h-[100px]">
-                                <textarea
-                                    style={{ resize: "none" }}
-                                    className="w-full p-1 h-[100px]"
-                                    autoComplete="off"
-                                    value={formula}
-                                    onChange={(e) => setFormula(e.target.value)}
-                                />
-                            </div>
-                            <ValidationSpan message={formulaValidation} />
-                        </div> : <></>
-                }
-                <div className="flex-1"></div>
-                <div className="w-75">
-                    <div className="flex justify-between">
-                        <button
-                            type="button"
-                            className="text-sm/6 font-semibold text-gray-900 hover:bg-white px-3 py-1 hover:text-gray-700 rounded border w-18"
-                            onClick={closeCurrentWindow}>
-                            Cancel
-                        </button>
-                        <button onClick={submitForm}
-                            className="rounded-md bg-indigo-600 px-3 py-1 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 w-18 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-                            Save
-                        </button>
-                    </div>
+                <ValidationSpan message={typeValidation} />
+            </div>
+            {
+                type === 'formula' ?
+                    <div className="mt-1 w-75">
+                        <label className="block text-xl select-none">
+                            Formula
+                        </label>
+                        <div className="bg-white border rounded border-gray-400 h-[100px]">
+                            <textarea
+                                style={{ resize: "none" }}
+                                className="w-full p-1 h-[100px]"
+                                autoComplete="off"
+                                value={formula}
+                                onChange={(e) => setFormula(e.target.value)}
+                            />
+                        </div>
+                        <ValidationSpan message={formulaValidation} />
+                    </div> : <></>
+            }
+            <div className="flex-1"></div>
+            <div className="w-75">
+                <div className="flex justify-between">
+                    <button
+                        type="button"
+                        className="text-sm/6 font-semibold text-gray-900 hover:bg-white px-3 py-1 hover:text-gray-700 rounded border w-18"
+                        onClick={closeCurrentWindow}>
+                        Cancel
+                    </button>
+                    <button onClick={submitForm}
+                        className="rounded-md bg-indigo-600 px-3 py-1 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 w-18 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                        Save
+                    </button>
                 </div>
             </div>
-        </>;
-    
+        </div>
+    </>;
+
 }

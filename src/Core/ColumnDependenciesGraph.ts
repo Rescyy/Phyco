@@ -143,32 +143,31 @@ export class DependencyGraph {
     /* starts from the most dependent */
     topologicalSort(): string[] {
         const visited = new Set<string>();
+        const recursionStack = new Set<string>(); // Tracks the recursion stack
         const result: string[] = [];
-
         const dfs = (node: string) => {
             if (visited.has(node)) return;
-            visited.add(node);
-
+            if (recursionStack.has(node)) {
+                throw new Error(`Circular dependency detected at node "${node}"`);
+            }
+            recursionStack.add(node);
             const dependents = this.queryDependents(node);
             for (const dep of dependents) {
                 dfs(dep.dependent.key);
             }
-
+            recursionStack.delete(node);
+            visited.add(node);
             result.push(node);
         };
-
-        // Get all unique nodes in the graph
         const allKeys = new Set<string>();
         for (const { dependent, dependee } of this.interior) {
             allKeys.add(dependent.key);
             allKeys.add(dependee.key);
         }
-
-        // Visit all nodes to ensure complete coverage
         for (const key of allKeys) {
             dfs(key);
         }
-
         return result;
     }
+
 }

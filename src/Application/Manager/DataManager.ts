@@ -238,15 +238,14 @@ export class DataManager {
     }
   }
 
-  async addColumn(): Promise<void> {
-    const unlisten = await listen("addColumnCallback", async (event: Event<AddColumnCallbackModel>) => {
+  addColumn(): void {
+    this.disposeListeners();
+    listen("addColumnCallback", async (event: Event<AddColumnCallbackModel>) => {
       const [columns] = this.columnsState;
       const columnValidator = new ColumnValidator(this);
       const callbackModel = event.payload;
       const validationResult = columnValidator.validateAddColumn(callbackModel);
-
       await emitTo("addColumn", "addColumnCallbackResponse", validationResult);
-
       if (isResultValid(validationResult)) {
         let column: ColumnModel;
         if (callbackModel.type === 'formula') {
@@ -255,19 +254,11 @@ export class DataManager {
           column = new ColumnModel(this, event.payload);
         }
         this.actionManager.execute(new AddColumnAction(this, column));
-        unlisten();
       }
-    });
-
-    this.disposeListeners();
-
-    this.unlistenFunctions.push(unlisten);
-    try {
-      this.unlistenFunctions.push(await this.listenDataRequest());
+    }).then(async (unlisten) => {
+      this.unlistenFunctions.push(unlisten);
       await invoke("add_column");
-    } catch (e) {
-      console.error(e);
-    }
+    }).catch(e => console.log(e));
   }
 
   addRow(): void {

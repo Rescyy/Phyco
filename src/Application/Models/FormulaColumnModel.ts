@@ -42,7 +42,6 @@ export class FormulaColumnModel extends ColumnModel {
         const [, setRows] = this.dataManager.rowsState;
         setRows(rows => {
             const columnMap = new Map<string, ColumnModel>();
-            debugger;
             this.dataManager.dependencyGraph.queryDependencies(this.key).map(dependency => {
                 const column = dependency.dependee as ColumnModel;
                 if (!column) throw new Error("Missing column model while getting it from dependencies");

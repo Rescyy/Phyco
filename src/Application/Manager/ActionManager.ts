@@ -6,35 +6,25 @@ export interface Action {
     do(): void;
     undo(): void;
 }
-
 export class ActionManager {
     private undoStack: Action[] = [];
     private redoStack: Action[] = [];
-
-    push(action: Action) {
-        this.undoStack.push(action);
-        this.redoStack = [];
-    }
-
     execute(action: Action) {
         action.do();
-        this.push(action);
+        this.undoStack.push(action);
+        this.redoStack.length = 0;
     }
-
     undo() {
-        const action = this.undoStack.pop();
-        if (action) {
-            action.undo();
-            this.redoStack.push(action);
-        }
+        this.transfer(this.undoStack, this.redoStack, a => a.undo());
     }
-
     redo() {
-        const action = this.redoStack.pop();
-        if (action) {
-            action.do();
-            this.undoStack.push(action);
-        }
+        this.transfer(this.redoStack, this.undoStack, a => a.do());
+    }
+    private transfer(from: Action[], to: Action[], act: (a: Action) => void) {
+        const action = from.pop();
+        if (!action) return;
+        act(action);
+        to.push(action);
     }
 }
 abstract class DataAction implements Action {
