@@ -33,7 +33,7 @@ export default class ChartManager {
             const chartValidator = new ChartValidator(this);
             const result = chartValidator.validateAddChart(model);
             if (isResultValid(result)) {
-                const chartModel = new ChartModel(model.name, model.type);
+                const chartModel = new ChartModel(this, model.name, model.type);
                 this.actionManager.execute(new AddChartAction(this, chartModel));
             }
             return result;
@@ -48,7 +48,7 @@ export default class ChartManager {
         const chart = charts.find(x => x.key === key)!;
         if (!chart.open) {
             chart.open = true;
-            await ViewChartEvents.listenChartCallbackEvents(chart, this)
+            await ViewChartEvents.MainEvents.listenChartCallbackEvents(chart, this)
                 .then(async () =>
                     await invoke("view_chart", { key, type: chart.type.value, name: chart.name })
                 );
@@ -67,17 +67,19 @@ abstract class ChartAction implements Action {
 }
 
 class AddChartAction extends ChartAction {
-    constructor(chartManager: ChartManager, private chartModel: ChartModel) { super(chartManager); }
+    constructor(chartManager: ChartManager, private chart: ChartModel) { super(chartManager); }
 
     do(): void {
         const [, setCharts] = this.chartManager.chartsState;
-        setCharts(charts => [...charts, this.chartModel]);
+        this.chartManager.dataManager.dependencyGraph.addNode(this.chart);
+        setCharts(charts => [...charts, this.chart]);
     }
     undo(): void {
         const [charts, setCharts] = this.chartManager.chartsState;
         const deletedChart = charts[charts.length - 1];
+        this.chartManager.dataManager.dependencyGraph.removeNode(deletedChart.key);
         setCharts(charts => charts.slice(0, -1));
-        ViewChartEvents.emitCloseChart(deletedChart);
+        ViewChartEvents.MainEvents.emitCloseChart(deletedChart);
     }
 }
 
@@ -90,12 +92,14 @@ class DeleteChartAction extends ChartAction {
         const [charts, setCharts] = this.chartManager.chartsState;
         console.log(this.index);
         this.deletedChart = charts[this.index];
+        this.chartManager.dataManager.dependencyGraph.removeNode(this.deletedChart.key);
         setCharts(charts => charts.filter((_, i) => i !== this.index));
-        ViewChartEvents.emitCloseChart(this.deletedChart);
+        ViewChartEvents.MainEvents.emitCloseChart(this.deletedChart);
     }
     undo(): void {
         if (this.deletedChart) {
             const [, setCharts] = this.chartManager.chartsState;
+            this.chartManager.dataManager.dependencyGraph.addNode(this.deletedChart);
             setCharts(charts => [...charts.slice(0, this.index), this.deletedChart!, ...charts.slice(this.index)]);
         }
     }

@@ -8,8 +8,10 @@ export type Dependency = {
     attribute?: any,
 }
 
+
 export class DependencyGraph {
     interior: Dependency[] = [];
+    models: Map<string, BaseModel> = new Map<string, BaseModel>();
 
     queryDependencies(key: string): Dependency[] {
         return this.interior.filter(x => x.dependent.key === key);
@@ -20,12 +22,20 @@ export class DependencyGraph {
     }
 
     removeNode(key: string) {
-        this.interior = this.interior.filter(x => x.dependent.key !== key && x.dependee.key !== key);
+        this.interior = this.interior.filter(
+            x => x.dependent.key !== key && x.dependee.key !== key
+        );
+        this.models.delete(key);
     }
 
     popNodes(keys: string[]) {
-        const result = this.interior.filter(x => keys.some(key => key === x.dependent.key || key === x.dependee.key));
-        this.interior = this.interior.filter(x => keys.some(key => key !== x.dependee.key && key !== x.dependent.key));
+        const result = this.interior.filter(
+            x => keys.some(key => key === x.dependent.key || key === x.dependee.key)
+        );
+        this.interior = this.interior.filter(
+            x => keys.every(key => key !== x.dependent.key && key !== x.dependee.key)
+        );
+        keys.forEach(key => this.models.delete(key));
         return result;
     }
 
@@ -36,20 +46,32 @@ export class DependencyGraph {
         this.addDependencyUnchecked(dependency);
     }
 
+    addNode(model: BaseModel) {
+        this.models.set(model.key, model);
+        this.addDependencies(model.getDependencies());
+    }
+
+    addNodeUnchecked(model: BaseModel) {
+        this.models.set(model.key, model);
+        this.addDependenciesUnchecked(model.getDependencies());
+    }
+
     addDependencies(dependencies: Dependency[]) {
-        dependencies.forEach(dependency => {
-            this.addDependency(dependency);
-        });
+        dependencies.forEach(dep => this.addDependency(dep));
     }
 
     addDependencyUnchecked(dependency: Dependency) {
         this.interior.push(dependency);
     }
 
-    addDependenciesUnchecked(dependencies: Dependency[]) {
-        dependencies.forEach(dependency => {
-            this.addDependencyUnchecked(dependency);
+    addNodes(models: BaseModel[]) {
+        models.forEach(model => {
+            this.models.set(model.key, model);
         });
+    }
+
+    addDependenciesUnchecked(dependencies: Dependency[]) {
+        dependencies.forEach(dep => this.addDependencyUnchecked(dep));
     }
 
     removeDependencies(dependent: string) {
@@ -57,10 +79,11 @@ export class DependencyGraph {
     }
 
     removeDependency(dependent: string, dependee: string) {
-        this.interior = this.interior.filter(x => x.dependee.key !== dependee && x.dependent.key !== dependent);
+        this.interior = this.interior.filter(
+            x => !(x.dependent.key === dependent && x.dependee.key === dependee)
+        );
     }
 
-    /* returns true if a circular dependency will be created */
     checkCircularDependency(dependent: string, dependee: string): boolean {
         const visited = new Set<string>();
 
@@ -77,7 +100,10 @@ export class DependencyGraph {
     }
 
     checkCircularDependencyWithModel(dataManager: DataManager, column: BaseModel) {
-        const testDependencies = [...dataManager.dependencyGraph.interior.filter(x => x.dependent.key !== column.key), ...column.getDependencies()]
+        const testDependencies = [
+            ...dataManager.dependencyGraph.interior.filter(x => x.dependent.key !== column.key),
+            ...column.getDependencies()
+        ];
         const testGraph = new DependencyGraph();
         try {
             testGraph.addDependencies(testDependencies);
@@ -109,7 +135,7 @@ export class DependencyGraph {
 
     propagateDependents(
         dependee: BaseModel,
-        hasValueChanged: (dependent: BaseModel) => boolean
+        hasValueChanged: (dependent: BaseModel, changedDependencies: string[]) => boolean
     ) {
         const visited = new Set<string>();
         const changed = new Set<string>([dependee.key]);
@@ -118,14 +144,13 @@ export class DependencyGraph {
             if (visited.has(currentModel.key)) return;
             visited.add(currentModel.key);
 
-            // Get all dependencies that have changed
             const dependencies = this.queryDependencies(currentModel.key)
                 .map(dep => dep.dependee.key)
                 .filter(dep => changed.has(dep));
 
             if (dependencies.length === 0) return;
 
-            if (hasValueChanged(currentModel)) {
+            if (hasValueChanged(currentModel, dependencies)) {
                 changed.add(currentModel.key);
                 const dependents = this.queryDependents(currentModel.key);
                 for (const dep of dependents) {
@@ -134,40 +159,49 @@ export class DependencyGraph {
             }
         };
 
-        // Start from direct dependents (not the root key)
         for (const dep of this.queryDependents(dependee.key)) {
             traverse(dep.dependent);
         }
     }
 
-    /* starts from the most dependent */
-    topologicalSort(): string[] {
+    topologicalSort(): BaseModel[] {
+        return this.topologicalSortKeys().map(key => this.models.get(key)!);
+    }
+
+    topologicalSortKeys(): string[] {
         const visited = new Set<string>();
-        const recursionStack = new Set<string>(); // Tracks the recursion stack
+        const recursionStack = new Set<string>();
         const result: string[] = [];
+
         const dfs = (node: string) => {
             if (visited.has(node)) return;
             if (recursionStack.has(node)) {
                 throw new Error(`Circular dependency detected at node "${node}"`);
             }
             recursionStack.add(node);
+
             const dependents = this.queryDependents(node);
             for (const dep of dependents) {
                 dfs(dep.dependent.key);
             }
+
             recursionStack.delete(node);
             visited.add(node);
             result.push(node);
         };
-        const allKeys = new Set<string>();
-        for (const { dependent, dependee } of this.interior) {
-            allKeys.add(dependent.key);
-            allKeys.add(dependee.key);
-        }
-        for (const key of allKeys) {
+
+        for (const key of this.models.keys()) {
             dfs(key);
         }
+
         return result;
     }
 
+    applyToAll(func: (model: BaseModel) => void) {
+        Array.from(this.models.values()).forEach(model => func(model));
+    }
+
+    applyTopological(func: (column: BaseModel) => void) {
+        this.topologicalSort().reverse().forEach(model => func(model));
+    }
 }

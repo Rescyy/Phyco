@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 
 interface ResizableFooterArgs {
   children?: ReactNode;
@@ -15,12 +15,13 @@ export default function ResizableFooter({ children, heightState, sidebarOpen, si
   const [isResizing, setIsResizing] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [previousHeight, setPreviousHeight] = useState(DEFAULT_HEIGHT);
+  const childrenRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing || collapsed) return;
       const newHeight = window.innerHeight - e.clientY;
-      const clamped = Math.min(Math.max(100, newHeight), window.innerHeight - 100);
+      const clamped = Math.min(Math.max(98, newHeight), window.innerHeight - 100);
       setHeight(clamped);
     };
 
@@ -70,7 +71,7 @@ export default function ResizableFooter({ children, heightState, sidebarOpen, si
         </div>
 
         {!collapsed && (
-          <div className="overflow-auto h-full">
+          <div ref={childrenRef} className="overflow-auto h-full">
             {children}
           </div>
         )}

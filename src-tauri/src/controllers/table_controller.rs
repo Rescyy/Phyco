@@ -75,8 +75,8 @@ pub fn open_view_chart_window<R: Runtime>(app: AppHandle<R>, key: String, r#type
             label: format!["{VIEW_CHART_LABEL}{key}"],
             title: format!["{VIEW_CHART_TITLE} {name}"],
             route: format!["{VIEW_CHART_ROUTE}?key={key}&type={type}&name={name}"],
-            height: 300.,
-            width: 400.,
+            height: 600.,
+            width: 600.,
         },
     )
 }

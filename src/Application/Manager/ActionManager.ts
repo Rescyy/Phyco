@@ -1,4 +1,4 @@
-import { Dependency } from "../../Core/ColumnDependenciesGraph";
+import { Dependency } from "../../Core/DependencyGraph";
 import { ColumnModel } from "../Models/ColumnModel";
 import { DataManager, RowModel } from "./DataManager";
 
@@ -46,8 +46,8 @@ export class EditCellAction extends DataAction {
         this.prevValue = rows[this.rowIdx][this.columnKey];
         const column = this.dataManager.getColumn(this.columnKey);
         if (column?.updateCell(this.rowIdx, this.columnKey, this.newValue)) {
-            this.dataManager.dependencyGraph.propagateDependents(column, (column) =>
-                Boolean(column.onDependencyUpdate())
+            this.dataManager.dependencyGraph.propagateDependents(column, (baseModel, updatedDependencies) =>
+                Boolean(baseModel.onDependencyUpdate(updatedDependencies))
             );
         }
     }
@@ -66,20 +66,22 @@ export class AddColumnAction extends DataAction {
 
     do(): void {
         const [columns, setColumns] = this.dataManager.columnsState;
-        const dependencies = this.column.getDependencies();
-        this.dataManager.dependencyGraph.addDependencies(dependencies);
+        const newColumns = [...columns, this.column];
+        const newColumnData = newColumns.map(x => x.columnData());
+        this.dataManager.dependencyGraph.applyToAll(x => x.onNewColumns(newColumnData));
+        this.dataManager.dependencyGraph.addNode(this.column);
         if (columns.length == 0) {
             const [, setRows] = this.dataManager.rowsState;
             setRows([this.dataManager.newRow(this.column, 0)]);
         }
         this.column.initialize();
-        const newColumns = [...columns, this.column];
         setColumns(newColumns);
     }
 
     undo(): void {
         const [columns, setColumns] = this.dataManager.columnsState;
-        this.dataManager.dependencyGraph.removeDependencies(columns[columns.length - 1].key);
+        this.dataManager.dependencyGraph.removeNode(columns[columns.length - 1].key);
+        this.dataManager.dependencyGraph.applyToAll(x => x.onDeletedColumns([this.column.key]));
         const prevColumns = columns.slice(0, -1);
         if (prevColumns.length === 0) {
             const [, setRows] = this.dataManager.rowsState;
@@ -115,13 +117,13 @@ export class EditColumnAction extends DataAction {
         this.dataManager.dependencyGraph.addDependencies(dependencies);
         if (oldColumn.name !== newColumn.name) {
             this.dataManager.dependencyGraph.queryDependents(newColumn.key).forEach(dependency => {
-                const column = dependency.dependent;
-                column?.onDependencyNameEdit(oldColumn.name, newColumn.name);
+                const model = dependency.dependent;
+                model?.onDependencyNameEdit(newColumn.key, oldColumn.name, newColumn.name);
             });
         }
         if (newColumn.update(oldColumn)) {
-            this.dataManager.dependencyGraph.propagateDependents(newColumn, (column) => {
-                return column?.onDependencyUpdate() ?? false;
+            this.dataManager.dependencyGraph.propagateDependents(newColumn, (baseModel, updatedDependencies) => {
+                return baseModel?.onDependencyUpdate(updatedDependencies) ?? false;
             });
         }
         columns[this.idx] = newColumn;
@@ -131,10 +133,12 @@ export class EditColumnAction extends DataAction {
 
 export class AddRowAction extends DataAction {
     do(): void {
+        debugger;
         const [rows, setRows] = this.dataManager.rowsState;
         const newRow = { key: Date.now().toString() };
-        setRows([...rows, newRow]);
-        this.dataManager.applyTopological((column) => {
+        const newRows = [...rows, newRow];
+        setRows(newRows);
+        this.dataManager.dependencyGraph.applyTopological((column) => {
             column.onRowAdded(rows.length, newRow);
         });
     }
@@ -142,15 +146,16 @@ export class AddRowAction extends DataAction {
     undo(): void {
         const [rows, setRows] = this.dataManager.rowsState;
         const deletedRow = rows[rows.length - 1];
-        setRows(rows.slice(0, -1));
-        this.dataManager.applyTopological((column) => {
+        const newRows = rows.slice(0, -1);
+        setRows(newRows);
+        this.dataManager.dependencyGraph.applyTopological((column) => {
             column.onRowDeleted(rows.length - 1, deletedRow);
         });
     }
 }
 
 type ColumnModelPosition = {
-    idx: number,
+    index: number,
     column: ColumnModel
 };
 
@@ -168,15 +173,16 @@ export class DeleteColumnAction extends DataAction {
         const key = columns[this.idx].key;
         const deletedColumnKeys = this.dataManager.dependencyGraph.traverseDependents(key);
         this.deletedDependencies = this.dataManager.dependencyGraph.popNodes(deletedColumnKeys);
+        this.dataManager.dependencyGraph.applyToAll(x => x.onDeletedColumns(deletedColumnKeys));
         this.deletedColumns = deletedColumnKeys.map(key => {
-            const idx = columns.findIndex(x => x.key === key);
+            const index = columns.findIndex(x => x.key === key);
             return {
-                idx,
-                column: columns[idx]
+                index,
+                column: columns[index]
             };
         });
         setColumns(columns => {
-            return columns.filter((_, i) => !this.deletedColumns.some(column => column.idx === i));
+            return columns.filter((_, i) => !this.deletedColumns.some(column => column.index === i));
         });
         const [rows] = this.dataManager.rowsState;
         this.deletedRows = rows.map(row => {
@@ -188,14 +194,19 @@ export class DeleteColumnAction extends DataAction {
 
     undo(): void {
         const [, setRows] = this.dataManager.rowsState;
-        const [columns, setColumns] = this.dataManager.columnsState;
+        const [, setColumns] = this.dataManager.columnsState;
         const deletedRows = this.deletedRows;
         this.dataManager.dependencyGraph.addDependenciesUnchecked(this.deletedDependencies);
+        this.dataManager.dependencyGraph.addNodes(this.deletedColumns.map(x => x.column));
         setRows(rows => rows.map((x, i) => { return { ...x, ...deletedRows[i] }; }));
-        this.deletedColumns.forEach(({ column, idx }) => {
-            columns.splice(idx, 0, column);
+        setColumns(columns => {
+            this.deletedColumns.forEach(({ column, index: idx }) => {
+                columns = columns.splice(idx, 0, column);
+            });
+            const columnData = columns.map(x => x.columnData());
+            this.dataManager.dependencyGraph.applyToAll(x => x.onNewColumns(columnData));
+            return columns;
         });
-        setColumns(columns);
     }
 }
 
@@ -213,7 +224,7 @@ export class DeleteRowAction extends DataAction {
             this.deletedRow = rows[this.idx];
             const newRows = rows.filter((_, filterIdx) => filterIdx !== this.idx);
             setRows(newRows);
-            this.dataManager.applyTopological((column) => {
+            this.dataManager.dependencyGraph.applyTopological((column) => {
                 column.onRowDeleted(this.idx, this.deletedRow!);
             });
         }
@@ -228,7 +239,7 @@ export class DeleteRowAction extends DataAction {
                 ...rows.slice(this.idx)
             ];
             setRows(prevRows);
-            this.dataManager.applyTopological((column) => {
+            this.dataManager.dependencyGraph.applyTopological((column) => {
                 column.onRowAdded(this.idx, this.deletedRow!);
             });
         }

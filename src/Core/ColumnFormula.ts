@@ -55,7 +55,8 @@ export type ColumnStatisticValues = {
 export type StatisticTypeSet = Set<StatisticType>;
 
 export class FormulaInput {
-    constructor(public index: number) { this.index = index + 1; }
+    index0: number;
+    constructor(public index: number) { this.index = index + 1; this.index0 = index; }
     data: {
         [key: string]: {
             [statisticType in StatisticType]?: number;
@@ -109,6 +110,7 @@ export class ColumnFormula {
     constructor(public columns: ColumnModel[], public rawExpression: string) {
         const evaluatedExpression = rawExpression.replace(/\[[^\[\]]*\]/g, (substring) => {
             if (substring === "[index]" || substring === "[i]") return "[index]";
+            if (substring === "[index0]" || substring === "[i0]") return "[index0]";
             const variableMatch = /^\[([^\[\]\.]+)(\.([^\[\]\.]+))?\]$/g.exec(substring);
             if (variableMatch === null) {
                 throw this.badVariableSyntax(substring);

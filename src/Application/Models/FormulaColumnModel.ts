@@ -1,4 +1,4 @@
-import { Dependency } from "../../Core/ColumnDependenciesGraph";
+import { Dependency } from "../../Core/DependencyGraph";
 import { ColumnFormula, FormulaInput, getStatisticTypeFunction, StatisticTypeSet } from "../../Core/ColumnFormula";
 import { DataManager } from "../Manager/DataManager";
 import { BaseModel } from "./BaseModel";
@@ -13,6 +13,18 @@ export class FormulaColumnModel extends ColumnModel {
 
     constructor(dataManager: DataManager, name: string, public formula: ColumnFormula, key?: string) {
         super(dataManager, name, "formula", key);
+    }
+
+    getDependenciesKeys(): string[] {
+        const [columns] = this.dataManager.columnsState;
+        const dependencies: string[] = [];
+        this.formula.dependencies.forEach((_, name) => {
+            const column = columns.find(x => x.name === name);
+            if (column) {
+                dependencies.push(column.key);
+            }
+        });
+        return dependencies;
     }
 
     /* call and append to the graph before initializing */
@@ -85,12 +97,13 @@ export class FormulaColumnModel extends ColumnModel {
         return false;
     }
 
-    override onDependencyNameEdit(oldName: string, newName: string) {
+    override onDependencyNameEdit(_key: string, oldName: string, newName: string) {
         this.formula.dependencies.replace(oldName, newName);
         this.formula.rawExpression = this.formula.rawExpression.replace(oldName, newName);
     }
 
-    override onDependencyUpdate(): boolean {
+    override onDependencyUpdate(_updatedDependencies: string[]): boolean {
+        console.log(_updatedDependencies);
         this.clearStatisticValues();
         this.initialize();
         return true;

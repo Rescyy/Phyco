@@ -1,17 +1,23 @@
 import { once, UnlistenFn, Event, emitTo } from "@tauri-apps/api/event";
 import Datatype, { getDatatype } from "../../Core/Datatype";
 import { DataRequest } from "../../Core/Common";
-import { Dependency } from "../../Core/ColumnDependenciesGraph";
+import { Dependency } from "../../Core/DependencyGraph";
 import { DataManager, RowModel } from "../Manager/DataManager";
 import { BaseModel } from "./BaseModel";
 
 export interface ColumnData {
   name: string,
+  key: string,
   type: {
     value: string,
     text: string,
   }, /* determines the type of ColumnData */
 };
+
+export type ColumnDataPosition = {
+    data: ColumnData,
+    index: number,
+}
 
 export type ColumnModelInitializeProps = {
   columns: ColumnModel[], rows: RowModel[], dependencies: Dependency[],
@@ -46,7 +52,7 @@ export class ColumnModel extends BaseModel {
 
   columnData(): ColumnData {
     return {
-      name: this.name, type: {
+      name: this.name, key: this.key, type: {
         value: this.type.value,
         text: this.type.text,
       }
@@ -62,6 +68,10 @@ export class ColumnModel extends BaseModel {
   static async fetchData(callerLabel: string, callback: (columnData: ColumnData) => void) {
     once("columnDataResponse", (data: Event<ColumnData>) => callback(data.payload));
     emitTo("main", "columnData", { callerLabel });
+  }
+
+  getDependenciesKeys(): string[] {
+    return [];
   }
 
   override getDependencies(): Dependency[] {
@@ -88,13 +98,18 @@ export class ColumnModel extends BaseModel {
     return true;
   }
 
-  override onDependencyNameEdit(_oldName: string, _newName: string) {
+  override onDependencyNameEdit(_key: string, _oldName: string, _newName: string) {
     throw new Error("Unreachable code. ColumnModel doesn't have column dependencies");
   }
 
   /* return true if column row values were modified */
-  override onDependencyUpdate(): boolean {
+  override onDependencyUpdate(_updatedDependencies: string[]): boolean {
     throw new Error("Unreachable code. ColumnModel doesn't have column dependencies.");
+  }
+
+  onNewColumns(_columnData: ColumnData[]): void {
+  }
+  onDeletedColumns(_keys: string[]): void {
   }
 
   newRow(_index: number): string {

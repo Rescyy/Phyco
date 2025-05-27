@@ -11,8 +11,15 @@ import { ColumnValidator } from "../Validation/ColumnValidator";
 import { DataRequest, isResultValid, State } from "../../Core/Common";
 import { FormulaColumnModel } from "../Models/FormulaColumnModel";
 import { ColumnFormula } from "../../Core/ColumnFormula";
-import { DependencyGraph } from "../../Core/ColumnDependenciesGraph";
+import { DependencyGraph } from "../../Core/DependencyGraph";
 import { listenDeleteColumnCallback, listenDeleteColumnDetailsRequest } from "../../Presentation/Views/Dialogs/DeleteColumn";
+
+export type ColumnRowData = {
+  [key: string]: {
+    name: string,
+    data: number[],
+  }
+};
 
 export type RowModel = {
   [key: string]: string
@@ -62,6 +69,7 @@ export class DataManager {
   ) {
     this.columnsState = columnsState;
     this.rowsState = rowsState;
+    this.setStateHandlers({columnsState, rowsState});
     this.refreshTable = refreshTable;
     this.filenameRef = filenameRef;
     this.actionManager = actionManager;
@@ -75,8 +83,24 @@ export class DataManager {
     rowsState: [RowModel[], React.Dispatch<React.SetStateAction<RowModel[]>>];
   }) {
     this.disposeListeners();
-    this.columnsState = columnsState;
-    this.rowsState = rowsState;
+    const [columns, setColumns] = columnsState;
+    const [rows, setRows] = rowsState;
+    this.columnsState = [columns, (columnsAction) => {
+      if (typeof columnsAction === 'object') {
+        this.columnsState[0] = columnsAction;
+      } else if (typeof columnsAction === 'function') {
+        this.columnsState[0] = columnsAction(this.columnsState[0]);
+      }
+      setColumns(this.columnsState[0]);
+    }];
+    this.rowsState = [rows, (rowsAction) => {
+      if (typeof rowsAction === 'object') {
+        this.rowsState[0] = rowsAction;
+      } else if (typeof rowsAction === 'function') {
+        this.rowsState[0] = rowsAction(this.rowsState[0]);
+      }
+      setRows(this.rowsState[0]);
+    }];
   }
 
   async saveProject(): Promise<void> {
@@ -126,18 +150,6 @@ export class DataManager {
     } catch (e) {
       console.error(e);
     }
-  }
-
-  applyTopological(func: (column: ColumnModel) => void) {
-    const [columns] = this.columnsState;
-    const sortedColumns = this.dependencyGraph.topologicalSort().reverse().map(x => this.getColumn(x)!);
-    const freeColumns = columns.filter(column => !sortedColumns.some(x => x.key === column.key));
-    sortedColumns.forEach(column => {
-      func(column);
-    });
-    freeColumns.forEach(column => {
-      func(column);
-    });
   }
 
   editRows(newRows: any[]): void {
@@ -286,6 +298,20 @@ export class DataManager {
       draggable: col.draggable,
       sortable: true,
     }));
+  }
+
+  getColumnRowData(keys: string[]): ColumnRowData {
+    const columnRowData: ColumnRowData = {};
+    keys.forEach(key => {
+      const column = this.getColumn(key);
+      if (column) {
+        columnRowData[key] = {
+          data: this.getColumnRowNumbers(key),
+          name: column.name
+        };
+      }
+    });
+    return columnRowData;
   }
 
   getColumnRowNumbers(key: string): number[] {

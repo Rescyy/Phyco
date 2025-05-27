@@ -79,3 +79,32 @@ export function handleEvent<T>(callback: (value: T) => void): (event: Event<T>) 
 export async function handleEventAsync<T>(callback: (value: T) => Promise<void>): Promise<(event: Event<T>) => Promise<void>> {
   return async (event: Event<T>) => await callback(event.payload);
 }
+
+type TypeOfMap<T> =
+  T extends string ? "string" :
+  T extends number ? "number" :
+  T extends boolean ? "boolean" :
+  T extends undefined ? "undefined" :
+  T extends Function ? "function" :
+  T extends any[] ? "object" : // arrays are objects in JS
+  T extends object ? "object" :
+  "unknown";
+
+function isUpdater<T>(value: T | ((prev: T) => T)): value is (prev: T) => T {
+  return typeof value === 'function';
+}
+
+function bindStateToVariable<T>(
+  variableSetter: (variable: T) => void,
+  variableGetter: () => T,
+  reactSetter: React.Dispatch<React.SetStateAction<T>>
+): React.Dispatch<React.SetStateAction<T>> {
+  return (variableAction) => {
+    if (isUpdater(variableAction)) {
+      variableSetter(variableAction(variableGetter()));
+    } else {
+      variableSetter(variableAction);
+    }
+    reactSetter(variableGetter());
+  };
+}
