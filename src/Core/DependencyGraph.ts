@@ -8,10 +8,43 @@ export type Dependency = {
     attribute?: any,
 }
 
+export type DependencyProjectModel = {
+    dependent: string,
+    dependee: string,
+    attribute?: any,
+}
 
 export class DependencyGraph {
     interior: Dependency[] = [];
     models: Map<string, BaseModel> = new Map<string, BaseModel>();
+
+    toProjectModel(): DependencyProjectModel[] {
+        debugger;
+        return this.interior.map(x => {
+            return {
+                dependent: x.dependent.key,
+                dependee: x.dependee.key,
+                attribute: x.attribute,
+            };
+        });
+    }
+
+    loadProjectModel(projectModel: DependencyProjectModel[]) {
+        projectModel.map(x => {
+            const dependent = this.models.get(x.dependent);
+            if (!dependent) {
+                throw new Error("Couldn't find dependent node with key: " + x.dependent);
+            }
+            const dependee = this.models.get(x.dependee);
+            if (!dependee) {
+                throw new Error("Couldn't find dependee node with key: " + x.dependee);
+            }
+            const dependency = {
+                dependent, dependee, attribute: x.attribute
+            }
+            this.addDependency(dependency);
+        });
+    }
 
     queryDependencies(key: string): Dependency[] {
         return this.interior.filter(x => x.dependent.key === key);
@@ -137,30 +170,18 @@ export class DependencyGraph {
         dependee: BaseModel,
         hasValueChanged: (dependent: BaseModel, changedDependencies: string[]) => boolean
     ) {
-        const visited = new Set<string>();
         const changed = new Set<string>([dependee.key]);
 
-        const traverse = (currentModel: BaseModel) => {
-            if (visited.has(currentModel.key)) return;
-            visited.add(currentModel.key);
+        const sorted = this.topologicalSort().reverse();
 
-            const dependencies = this.queryDependencies(currentModel.key)
+        for (const model of sorted) {
+            const dependencies = this.queryDependencies(model.key)
                 .map(dep => dep.dependee.key)
-                .filter(dep => changed.has(dep));
+                .filter(depKey => changed.has(depKey));
 
-            if (dependencies.length === 0) return;
-
-            if (hasValueChanged(currentModel, dependencies)) {
-                changed.add(currentModel.key);
-                const dependents = this.queryDependents(currentModel.key);
-                for (const dep of dependents) {
-                    traverse(dep.dependent);
-                }
+            if (dependencies.length > 0 && hasValueChanged(model, dependencies)) {
+                changed.add(model.key);
             }
-        };
-
-        for (const dep of this.queryDependents(dependee.key)) {
-            traverse(dep.dependent);
         }
     }
 

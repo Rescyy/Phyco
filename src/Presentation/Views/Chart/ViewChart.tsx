@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import ChartModel from "../../../Application/Models/ChartModel";
 import ChartManager from "../../../Application/Manager/ChartManager";
-import { JSX, useEffect, useState } from "react";
+import { JSX, useEffect, useRef, useState } from "react";
 import { emitTo, listen, once, UnlistenFn } from "@tauri-apps/api/event";
 import { closeCurrentWindow, handleEvent, State } from "../../../Core/Common";
 import useResize from "../../Hooks/Resize";
@@ -9,7 +9,8 @@ import ResizableFooter from "../ResizableFooter";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { lineChartComponents } from "./LineChart";
 import { ColumnRowData } from "../../../Application/Manager/DataManager";
-import { ColumnData, ColumnDataPosition } from "../../../Application/Models/ColumnModel";
+import { ColumnData } from "../../../Application/Models/ColumnModel";
+import { matrixChartComponents } from "./CorrelationMatrixChart";
 
 const viewChartLabel = (key: string) => `viewChart/${key}`;
 const closeChartEvent = (key: string) => `closeChart/${key}`;
@@ -158,6 +159,8 @@ export type ChartComponentsProps = {
     datasetConfigsState: State<ChartDatasetConfiguration[]>,
     size: { height: number, width: number }
     footerHeightState: State<number>,
+    canvasRef: React.RefObject<HTMLCanvasElement | null>,
+    chartRef: React.RefObject<any | null>
 };
 
 export type ChartComponents = {
@@ -177,6 +180,8 @@ export default function ViewChart() {
     const [datasets, setDatasets] = useState<ChartDatasetConfiguration[]>([]);
     const [columns, setColumns] = useState<ColumnData[]>([]);
     const [rendered, setRendered] = useState(false);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const chartRef = useRef<any | null>(null);
 
     useEffect(() => {
         const unlistens: UnlistenFn[] = [];
@@ -211,10 +216,30 @@ export default function ViewChart() {
                             deletedKeys.forEach(key => delete copy[key]);
                             return copy;
                         });
-                        setColumns(columns => columns.filter(x => model.deleteColumns?.includes(x.key)));
+                        setColumns(columns => {
+                            return columns.filter(x => !deletedKeys.includes(x.key));
+                        });
+                        const removeIfDeleted = (key: string | undefined) => {
+                            if (key === undefined || deletedKeys.some(deletedKey => deletedKey === key)) {
+                                return undefined;
+                            } else {
+                                return key;
+                            }
+                        }
+                        setDatasets(datasets => {
+                            return datasets.map(dataset => {
+                                const newDataset = {
+                                    ...dataset,
+                                    xKey: removeIfDeleted(dataset.xKey),
+                                    yKey: removeIfDeleted(dataset.yKey),
+                                };
+                                return newDataset;
+                            });
+                        });
                     }
 
                     if (model.columnsUpdate) {
+                        debugger;
                         setColumnRowData(columnRowData => {
                             const copy = { ...columnRowData };
                             for (const key in model.columnsUpdate) {
@@ -246,8 +271,9 @@ export default function ViewChart() {
                 case "linear":
                     return lineChartComponents;
                 case "bar":
-                case "correlation":
                     return unimplementedChartType;
+                case "correlation":
+                    return matrixChartComponents;
                 default:
                     return () => { return { chart: <>Unknown chart type</>, customizationMenu: <></> }; }
             }
@@ -261,9 +287,13 @@ export default function ViewChart() {
             }],
             datasetConfigsState: [datasets, (datasets) => {
                 setDatasets(datasets);
+                if (typeof datasets !== 'function') {
+                    ViewChartEvents.ChartEvents.emitChartUpdateEvent(key, { datasets });
+                }
             }],
             size: { height, width },
-            footerHeightState: [footerHeight, setFooterHeight]
+            footerHeightState: [footerHeight, setFooterHeight],
+            canvasRef, chartRef,
         });
 
         return <>

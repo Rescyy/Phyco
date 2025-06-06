@@ -24,6 +24,13 @@ export type ColumnModelInitializeProps = {
 }
 
 export class ColumnModel extends BaseModel {
+  toProjectModel() {
+    return {
+      type: this.type.value,
+      key: this.key,
+      name: this.name
+    }
+  }
   type: Datatype;
   resizable = false;
   minWidth = 50;
@@ -39,6 +46,7 @@ export class ColumnModel extends BaseModel {
     } else {
       this.type = getDatatype(type!)!;
     }
+    if (!this.type) throw new Error("Unknown Column Type: " + this.type);
   }
 
   getStatisticValues(model?: BaseModel): Map<string, number> {

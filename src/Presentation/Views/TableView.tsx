@@ -8,10 +8,11 @@ import { MultipleEventHandler } from "../../Core/Singletons/MultipleEventHandler
 import { useSearchParams } from "react-router-dom";
 import { debounce } from "../../Core/Common";
 import { ActionManager } from "../../Application/Manager/ActionManager";
-import RightSidebar, { SidebarType } from "./RightSidebar"; // assume this exists
+import RightSidebar, { SidebarType } from "./RightSidebar";
 import { FaPlus, FaTrash } from "react-icons/fa";
 import ChartManager from "../../Application/Manager/ChartManager";
 import ChartModel from "../../Application/Models/ChartModel";
+import { ProjectManager } from "../../Application/Manager/ProjectManager";
 
 export default function TableView() {
   const [columns, setColumns] = useState<ColumnModel[]>([]);
@@ -29,34 +30,42 @@ export default function TableView() {
 
   const tableRef = useRef<DataGridHandle>(null);
   const [searchParams] = useSearchParams();
-  const filenameRef = useRef<string | null>(searchParams.get("filename"));
+  const fileNameRef = useRef<string | null>(searchParams.get("filename"));
   const actionManagerRef = useRef(new ActionManager());
   const dataManagerRef = useRef(new DataManager({
     columnsState: [columns, setColumns],
     rowsState: [rows, setRows],
     refreshTable: () => setTime(Date.now()),
-    filenameRef,
+    filenameRef: fileNameRef,
     actionManager: actionManagerRef.current,
   }));
-  
+
   const actionManager = actionManagerRef.current;
   const dataManager = dataManagerRef.current;
-  dataManager.setStateHandlers({ columnsState: [columns, setColumns], rowsState: [rows, setRows] });
+  dataManager.bindState({ columnsState: [columns, setColumns], rowsState: [rows, setRows] });
   const chartManagerRef = useRef(new ChartManager(dataManager, actionManager, [charts, setCharts]));
 
   const chartManager = chartManagerRef.current;
-  chartManager.setStateHandlers([charts, setCharts]);
+  chartManager.bindState([charts, setCharts]);
+  const projectManagerRef = useRef(new ProjectManager({
+    dataManager,
+    chartManager,
+    fileNameRef
+  }));
+  const projectManager = projectManagerRef.current;
 
   useEffect(() => {
-    const filename = filenameRef.current;
+    const filename = fileNameRef.current;
     if (filename) {
       setLoading(true);
       debounce("TableView.openProject", async () => {
-        await dataManager?.openProject(filename);
+        await projectManager.loadProject();
         setLoading(false);
       }, 0);
     }
+  }, []);
 
+  useEffect(() => {
     const handleResize = () => {
       setGridHeight(window.innerHeight - footerHeight - 18);
     };
@@ -79,7 +88,7 @@ export default function TableView() {
         dataManager?.editColumn(selectedColumn);
       } else if (event.key === "s" && event.ctrlKey) {
         event.preventDefault();
-        await dataManager?.saveProject();
+        await projectManager.saveProject();
       } else if (event.key === "z" && event.ctrlKey) {
         actionManagerRef.current.undo();
       } else if (event.key === "Z" && event.ctrlKey && event.shiftKey) {
@@ -192,7 +201,7 @@ export default function TableView() {
             >
               <span className="text-sm font-medium truncate select-none">{chart.name}</span>
               <div className="flex gap-1">
-                <button onClick={(e) => {e.stopPropagation(); chartManager.handleDelete(i);}}>
+                <button onClick={(e) => { e.stopPropagation(); chartManager.handleDelete(i); }}>
                   <div className="p-1 hover:bg-zinc-200 rounded-2xl">
                     <FaTrash className="w-4 h-4 fill-zinc-600 hover:fill-zinc-700" />
                   </div>

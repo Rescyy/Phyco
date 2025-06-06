@@ -1,5 +1,5 @@
 import { UnlistenFn } from "@tauri-apps/api/event";
-import { isResultValid, State } from "../../Core/Common";
+import { bindStateToVariable, isResultValid, State } from "../../Core/Common";
 import { listenAddChartCallback } from "../../Presentation/Views/Dialogs/AddChart";
 import ChartModel from "../Models/ChartModel";
 import { ChartValidator } from "../Validation/ChartValidator";
@@ -22,8 +22,13 @@ export default class ChartManager {
         this.unlistenFunctions = [];
     }
 
-    setStateHandlers(chartsState: State<ChartModel[]>) {
-        this.chartsState = chartsState;
+    bindState(chartsState: State<ChartModel[]>) {
+        const [charts, setCharts] = chartsState;
+        this.chartsState = [charts, bindStateToVariable({
+            setter: (charts) => this.chartsState[0] = charts,
+            getter: () => this.chartsState[0],
+            reactSetter: setCharts,
+        })];
     }
 
     async handleAdd() {

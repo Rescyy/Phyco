@@ -8,7 +8,7 @@ import { ActionManager, AddColumnAction, AddRowAction, DeleteColumnAction, Delet
 import { AddColumnCallbackModel } from "../../Presentation/Views/Dialogs/AddColumn";
 import { EditColumnCallbackModel } from "../../Presentation/Views/Dialogs/EditColumn";
 import { ColumnValidator } from "../Validation/ColumnValidator";
-import { DataRequest, isResultValid, State } from "../../Core/Common";
+import { bindStateToVariable, DataRequest, isResultValid, State } from "../../Core/Common";
 import { FormulaColumnModel } from "../Models/FormulaColumnModel";
 import { ColumnFormula } from "../../Core/ColumnFormula";
 import { DependencyGraph } from "../../Core/DependencyGraph";
@@ -69,13 +69,13 @@ export class DataManager {
   ) {
     this.columnsState = columnsState;
     this.rowsState = rowsState;
-    this.setStateHandlers({columnsState, rowsState});
+    this.bindState({columnsState, rowsState});
     this.refreshTable = refreshTable;
     this.filenameRef = filenameRef;
     this.actionManager = actionManager;
   }
 
-  setStateHandlers({
+  bindState({
     columnsState,
     rowsState
   }: {
@@ -85,22 +85,16 @@ export class DataManager {
     this.disposeListeners();
     const [columns, setColumns] = columnsState;
     const [rows, setRows] = rowsState;
-    this.columnsState = [columns, (columnsAction) => {
-      if (typeof columnsAction === 'object') {
-        this.columnsState[0] = columnsAction;
-      } else if (typeof columnsAction === 'function') {
-        this.columnsState[0] = columnsAction(this.columnsState[0]);
-      }
-      setColumns(this.columnsState[0]);
-    }];
-    this.rowsState = [rows, (rowsAction) => {
-      if (typeof rowsAction === 'object') {
-        this.rowsState[0] = rowsAction;
-      } else if (typeof rowsAction === 'function') {
-        this.rowsState[0] = rowsAction(this.rowsState[0]);
-      }
-      setRows(this.rowsState[0]);
-    }];
+    this.columnsState = [columns, bindStateToVariable({
+      setter: (columns) => this.columnsState[0] = columns,
+      getter: () => this.columnsState[0],
+      reactSetter: setColumns,
+    })];
+    this.rowsState = [rows, bindStateToVariable({
+      setter: (rows) => this.rowsState[0] = rows,
+      getter: () => this.rowsState[0],
+      reactSetter: setRows
+    })];
   }
 
   async saveProject(): Promise<void> {
@@ -129,7 +123,7 @@ export class DataManager {
     }
   }
 
-  async openProject(filename: string): Promise<void> {
+  async loadProject(filename: string): Promise<void> {
     const [, setColumns] = this.columnsState;
     const [, setRows] = this.rowsState;
 
@@ -278,7 +272,7 @@ export class DataManager {
   }
 
   newRow(columns?: ColumnModel[] | ColumnModel, index?: number): RowModel {
-    const newRow: any = { key: Date.now() };
+    const newRow: any = { key: Date.now().toString() };
     const cols = columns instanceof ColumnModel ? [columns] : (columns ?? this.columnsState[0]);
     cols.forEach(col => newRow[col.key] = col.newRow(index ?? this.rowsState[0].length));
     return newRow;

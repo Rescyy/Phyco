@@ -7,12 +7,31 @@ import ChartManager from '../Manager/ChartManager';
 import { ColumnData } from './ColumnModel';
 
 export default class ChartModel extends BaseModel {
+    toProjectModel() {
+        debugger;
+        return {
+            type: this.type.value,
+            options: this.options,
+            name: this.name,
+            datasets: this.datasets,
+            key: this.key,
+        };
+    }
     type: ChartType;
     open: boolean = false;
     options: ChartOptions = {};
     datasets: ChartDatasetConfiguration[] = [];
 
     private unlistens: UnlistenFn[] = [];
+
+    static fromProjectModel(chartManager: ChartManager, projectModel: any): ChartModel {
+        debugger;
+        const chart = new ChartModel(chartManager, projectModel.name, projectModel.type, projectModel.key);
+        chart.options = projectModel.options;
+        chart.datasets = projectModel.datasets;
+        return chart;
+    }
+
     disposeListeners() {
         this.open = false;
         this.unlistens.forEach(x => x());
@@ -26,19 +45,21 @@ export default class ChartModel extends BaseModel {
         super(name, key);
         this.type = getChartType(type)!;
     }
-
-    getDependenciesKeys(): string[] {
+    static getDatasetsKeys(datasets: ChartDatasetConfiguration[]): string[] {
         const dependencies = new Set<string>();
         const pushDependency = (dependencyKey: string | undefined) => {
             if (dependencyKey) {
                 dependencies.add(dependencyKey);
             }
         };
-        this.datasets.forEach(dataset => {
+        datasets.forEach(dataset => {
             pushDependency(dataset.xKey);
             pushDependency(dataset.yKey);
         });
         return Array.from(dependencies);
+    }
+    getDependenciesKeys(): string[] {
+        return ChartModel.getDatasetsKeys(this.datasets);
     }
     getDependencies(): Dependency[] {
         const models = this.chartManager.dataManager.dependencyGraph.models;
@@ -58,6 +79,7 @@ export default class ChartModel extends BaseModel {
         });
     }
     onDependencyUpdate(changedDependencies: string[]): boolean {
+        debugger;
         const dataManager = this.chartManager.dataManager;
         ViewChartEvents.MainEvents.emitDataUpdate(this.key, {
             columnsUpdate: dataManager.getColumnRowData(changedDependencies)

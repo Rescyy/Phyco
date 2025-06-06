@@ -15,6 +15,14 @@ export class FormulaColumnModel extends ColumnModel {
         super(dataManager, name, "formula", key);
     }
 
+    override toProjectModel() {
+        const baseModel = super.toProjectModel();
+        return {
+            ...baseModel,
+            rawExpression: this.formula.rawExpression
+        }
+    }
+
     getDependenciesKeys(): string[] {
         const [columns] = this.dataManager.columnsState;
         const dependencies: string[] = [];

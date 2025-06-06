@@ -24,4 +24,5 @@ export abstract class BaseModel {
     onRowAdded(_index: number, _row: RowModel) {
         this.initialize();
     }
+    abstract toProjectModel(): any;
 }

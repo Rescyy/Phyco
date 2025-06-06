@@ -1,8 +1,8 @@
-use log::info;
+use log;
 use tauri::{command, generate_handler, AppHandle, Builder, Runtime};
 
 use super::{
-    file_controller::{self, OpenProjectModel},
+    file_controller::{self},
     table_controller::{self},
 };
 
@@ -45,7 +45,12 @@ pub fn add_chart<R: Runtime>(app: AppHandle<R>) -> tauri::Result<()> {
 }
 
 #[command]
-pub fn view_chart<R: Runtime>(app: AppHandle<R>, key: String, r#type: String, name: String) -> tauri::Result<()> {
+pub fn view_chart<R: Runtime>(
+    app: AppHandle<R>,
+    key: String,
+    r#type: String,
+    name: String,
+) -> tauri::Result<()> {
     table_controller::open_view_chart_window(app, key, r#type, name)
 }
 
@@ -55,8 +60,7 @@ async fn save_project(content: String, filename: String) -> tauri::Result<()> {
 }
 
 #[tauri::command]
-fn read_project(filename: String) -> tauri::Result<OpenProjectModel> {
-    let result = file_controller::read_project(filename)?;
-    info!["{:?}", result];
-    Ok(result)
+fn read_project(filename: String) -> tauri::Result<String> {
+    file_controller::read_project(filename)
+    .inspect_err(|e| log::error!["{}", e])
 }

@@ -52,7 +52,7 @@ export type ColumnStatisticValues = {
     [key: string]: StatisticValues
 }
 
-export type StatisticTypeSet = Set<StatisticType>;
+export type StatisticTypeSet = StatisticType[];
 
 export class FormulaInput {
     index0: number;
@@ -74,7 +74,7 @@ export class FormulaColumnDependencies {
         if (set) {
             return set;
         }
-        set = new Set<StatisticType>();
+        set = [];
         this.interior.set(name, set);
         return set;
     }
@@ -82,7 +82,9 @@ export class FormulaColumnDependencies {
     addDependency(name: string, type?: string) {
         const set = this.get(name);
         if (type && isStatisticType(type)) {
-            set.add(type);
+            if (!set.some(x => x === type)) {
+                set.push(type);
+            }
         }
     }
 
@@ -101,6 +103,10 @@ export class FormulaColumnDependencies {
             this.interior.set(newName, set);
         }
     }
+}
+
+export class ColumnDoesNotExistError extends Error {
+
 }
 
 export class ColumnFormula {
@@ -157,7 +163,7 @@ export class ColumnFormula {
     }
 
     columnDoesNotExist(name: string, variable: string): Error {
-        return new Error(`Column '${name}' does not exist: ${variable}`);
+        return new ColumnDoesNotExistError(`Column '${name}' does not exist: ${variable}`);
     }
 
     notStatisticType(type: string, variable: string): Error {

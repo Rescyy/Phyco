@@ -169,30 +169,35 @@ export class DeleteColumnAction extends DataAction {
     }
 
     do(): void {
+        debugger;
         const [columns, setColumns] = this.dataManager.columnsState;
         const key = columns[this.idx].key;
-        const deletedColumnKeys = this.dataManager.dependencyGraph.traverseDependents(key);
+        const dependentTree = this.dataManager.dependencyGraph.traverseDependents(key);
+        this.deletedColumns = [];
+        dependentTree.forEach(key => {
+            const index = columns.findIndex(x => x.key === key);
+            if (index >= 0) {
+                this.deletedColumns.push({
+                    index, column: columns[index]
+                })
+            }
+        });
+        const deletedColumnKeys = this.deletedColumns.map(x => x.column.key);
         this.deletedDependencies = this.dataManager.dependencyGraph.popNodes(deletedColumnKeys);
         this.dataManager.dependencyGraph.applyToAll(x => x.onDeletedColumns(deletedColumnKeys));
-        this.deletedColumns = deletedColumnKeys.map(key => {
-            const index = columns.findIndex(x => x.key === key);
-            return {
-                index,
-                column: columns[index]
-            };
-        });
         setColumns(columns => {
             return columns.filter((_, i) => !this.deletedColumns.some(column => column.index === i));
         });
         const [rows] = this.dataManager.rowsState;
         this.deletedRows = rows.map(row => {
             const deletedRow: RowModel = {};
-            deletedColumnKeys.forEach(key => deletedRow[key] = row[key]);
+            dependentTree.forEach(key => deletedRow[key] = row[key]);
             return deletedRow;
         });
     }
 
     undo(): void {
+        debugger;
         const [, setRows] = this.dataManager.rowsState;
         const [, setColumns] = this.dataManager.columnsState;
         const deletedRows = this.deletedRows;
@@ -201,7 +206,7 @@ export class DeleteColumnAction extends DataAction {
         setRows(rows => rows.map((x, i) => { return { ...x, ...deletedRows[i] }; }));
         setColumns(columns => {
             this.deletedColumns.forEach(({ column, index: idx }) => {
-                columns = columns.splice(idx, 0, column);
+                columns.splice(idx, 0, column);
             });
             const columnData = columns.map(x => x.columnData());
             this.dataManager.dependencyGraph.applyToAll(x => x.onNewColumns(columnData));

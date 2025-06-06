@@ -10,6 +10,8 @@ import { ChartComponents, ChartComponentsProps, ChartDatasetConfiguration, ViewC
 import { Scatter } from 'react-chartjs-2';
 import { ColumnData } from "../../../Application/Models/ColumnModel";
 import { ColumnRowData } from "../../../Application/Manager/DataManager";
+import ChartModel from "../../../Application/Models/ChartModel";
+import { FaTrash } from "react-icons/fa";
 
 export function lineChartComponents(props: ChartComponentsProps): ChartComponents {
     const {
@@ -28,28 +30,33 @@ export function lineChartComponents(props: ChartComponentsProps): ChartComponent
 
     const handleAddDataset = () => {
         if (footerHeight < 251) setFooterHeight(251);
-        setDatasetConfigs((prev) => [...prev, { xKey: undefined, yKey: undefined, config: { label: `Dataset ${prev.length + 1}`, borderColor: colors[prev.length % colors.length], pointStyle: false } }]);
+        setDatasetConfigs((prev) => [...prev, {
+            xKey: undefined,
+            yKey: undefined,
+            config: {
+                label: `Dataset ${prev.length + 1}`,
+                borderColor: colors[prev.length % colors.length],
+                pointStyle: false
+            }
+        }]);
     };
-    
+
     const handleDatasetKeyChange = async (index: number, axis: "xKey" | "yKey", columnKey: string) => {
+        debugger;
         const existingData = columnRowData[columnKey];
+        datasetConfigs[index] = { ...datasetConfigs[index], [axis]: columnKey };
+        const datasetKeys = ChartModel.getDatasetsKeys(datasetConfigs);
+        setDatasetConfigs([...datasetConfigs]);
         if (!existingData) {
             await ViewChartEvents.ChartEvents.requestData(key, columnKey, (response) => {
                 setColumnRowData((columnRowData) => {
-                    const copy = { ...columnRowData };
+                    const copy: ColumnRowData = {};
+                    datasetKeys.forEach(key => copy[key] = columnRowData[key]);
                     copy[columnKey] = response[columnKey];
                     return copy;
                 });
             });
         }
-        setDatasetConfigs((datasetConfigs) => {
-            const copy = [...datasetConfigs];
-            copy[index] = { ...copy[index], [axis]: columnKey };
-            ViewChartEvents.ChartEvents.emitChartUpdateEvent(key, {
-                datasets: copy
-            });
-            return copy;
-        });
     };
 
     const renderChart = () => {
@@ -71,11 +78,11 @@ export function lineChartComponents(props: ChartComponentsProps): ChartComponent
             {datasetConfigs.map((config, index) => (
                 <div
                     key={index}
-                    className="border border-gray-300 rounded-lg p-4 space-y-4 bg-white shadow-sm"
+                    className="border border-gray-300 rounded-lg px-4 py-2 space-y-2 bg-white shadow-sm"
                 >
                     <h3 className="font-semibold text-gray-700">Dataset #{index + 1}</h3>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-600 mb-1">X Axis</label>
                             <select
@@ -106,6 +113,23 @@ export function lineChartComponents(props: ChartComponentsProps): ChartComponent
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-600 mb-1">Color</label>
+                            <input className="bg-white-100 " value={config.config.borderColor} onChange={(e) => {
+                                e.preventDefault();
+                                datasetConfigs[index].config.borderColor = e.target.value;
+                                setDatasetConfigs([...datasetConfigs]);
+                            }}>
+                            </input>
+                        </div>
+                        <div>
+                            <button
+                                onClick={() => { setDatasetConfigs(datasetConfigs.filter((_, i) => i !== index)) }}
+                                className="p-2 rounded-full hover:bg-red-100 text-red-600 hover:text-red-800 transition-colors"
+                            >
+                                <FaTrash size={16} />
+                            </button>
                         </div>
                     </div>
                 </div>
